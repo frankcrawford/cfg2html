@@ -56,6 +56,12 @@ ifeq ($(OFFICIAL),)
     obspackage = $(name)
 endif
 
+ifneq ($(shell which apt 2>/dev/null),)
+T := deb
+else
+T := rpm
+endif
+
 .PHONY: doc
 
 all:
@@ -69,6 +75,7 @@ help:
   uninstall       - Uninstall cfg2html (may remove files)\n\
   dist            - Create tar file\n\
   deb             - Create DEB package\n\
+  Linux           - tries to guess RPM or DEB creation\n\
   rpm             - Create RPM package\n\
   pacman          - Create Pacman package\n\
   obs             - Initiate OBS builds\n\
@@ -209,6 +216,9 @@ $(name)-$(distversion).tar.gz:
 	git checkout $(git_branch) ; \
 	git ls-tree -r --name-only --full-tree $(git_branch) | grep -v -E '(^bin|^hpux|^doc|^aix|^bsd|^sunos)' | \
 		tar -czf $(name)-$(distversion).tar.gz --transform='s,^,$(name)-$(distversion)/,S' --files-from=-
+
+Linux:
+	case $T in deb) make deb;; rpm) make rpm;; *) make help;; esac
 
 rpm: dist
 	@echo -e "\033[1m== Building RPM package $(name)-$(distversion) ==\033[0;0m"

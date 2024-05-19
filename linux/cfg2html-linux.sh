@@ -1,8 +1,17 @@
 #!/bin/bash
+# shellcheck disable=SC2015,SC2016,SC2034,SC2153,SC2154,SC2155
+# (note - shellcheck directive needs to be at the very top to be effective over the whole file) # modified on 20240303 by edrulrd
+# SC2015 - Note that A && B || C is not if-then-else. C may run when A is true.
+# SC2016 - Don't complain about single quotes in awk command
+# SC2034 - variable appears to be used
+# SC2153 - Possible misspelling of variable
+# SC2154 - variable referenced but not assigned
+# SC2155 - Declare and assign separately to avoid masking return values
+
 #
-# @(#) $Id: cfg2html-linux.sh,v 6.68 2023/02/15 11:10:05 ralph Exp $
+# @(#) $Id: cfg2html-linux.sh,v 6.72 2024/04/01 20:23:22 ralph Exp $
 # -----------------------------------------------------------------------------------------
-# (c) 1997-2023 by Ralph Roth  -*- http://rose.rult.at -*-  Coding: ISO-8859-15
+# (c) 1997-2024 by Ralph Roth  -*- http://rose.rult.at -*-  Coding: ISO-8859-15
 #     Further modified by Joe Wulf:  20200407@1432.
 
 #  If you change this script, please mark your changes with for example
@@ -13,7 +22,6 @@ CFGSH=$_  ### CFGSH appears unused. Verify use (or export if used externally).
 # unset "-set -vx" for debugging purpose (use set +vx to disable); NOTE: After the 'exec 2>' statement all debug info will go the errorlog file (*.err)
 # set -vx
 # *vim:numbers:ruler
-# shellcheck disable=SC2034,SC2154
 
 # ---------------------------------------------------------------------------
 # NEW VERSION - v6/github/GPL
@@ -32,14 +40,14 @@ CFGSH=$_  ### CFGSH appears unused. Verify use (or export if used externally).
 # -  Print env|set, and 'shopt | sort | column -t' for root user.
 # -  Ensure all called functions get the rename of variables from $VAR to ${VAR}.
 # -  Rewrite all `<cmd>` to $(<cmd>).
-# -
+# -  Add the equivalent of "gconftool-2 -R /system"  "GNOME System Config" for newer Gnome systems (i.e. gsettings) # added on 20240322 by edrulrd
 # -
 # -
 #
 
 # {jcw} Done:
 # -  Accomplished massive rename of variables from $VAR to ${VAR}.
-# -
+# -  Rewrite all `<cmd>` to $(<cmd>). # modified on 20240322 by edrulrd
 # -
 # -
 # -
@@ -61,7 +69,7 @@ CFGSH=$_  ### CFGSH appears unused. Verify use (or export if used externally).
      for PathMgmt in $(echo ${CorePath}:${ScndryPaths} | sed 's/:/\n/g' | awk '!LinesSeen[$0]++'); do # modified on 20201026 by edrulrd
          # The awk defines what lines to print.  "$0" holds the entire contents of 'a' line.  The square brackets are array access.  As each line is processed, awk increments
          # a node of the array (named 'LinesSeen'); printing the line if the content was not (!) previously set.  Very efficient elimination of dups without unwanted 'sorting'.
-         if [ -e "${PathMgmt}" ] && [ -d "${PathMgmt}" -a ! -L "${PathMgmt}" ]; then # don't want dirs that are also links (eg. /usr/bin/X11) # modified on 20201027 by edrulrd
+         if [ -e "${PathMgmt}" ] && [ -d "${PathMgmt}" ] && [ ! -L "${PathMgmt}" ]; then # don't want dirs that are also links (eg. /usr/bin/X11) # modified on 20201027 by edrulrd
               # If the dir doesn't currently exist then ignore it
               # For the rest, assume the provided sorted order is sufficient to add them back in to the path.
               case ${PathMgmt} in
@@ -83,20 +91,20 @@ CFGSH=$_  ### CFGSH appears unused. Verify use (or export if used externally).
      # echo "PATH is:  (${PATH})."  # Debug.
 unset BuiltPath CorePath PathMgmt ScndryPaths ShoptExtglob
 
-DtFmt='+%Y%m%d@%H%M'; DtFmts='+%Y%m%d@%H%M%S' # [20200312] {jcw} Useful date formats. DtFmt appears unused. Verify use (or export if used externally).
-
+DtFmt='+%Y%m%d@%H%M';
+DtFmts='+%Y%m%d@%H%M%S' # [20200312] {jcw} Useful date formats. DtFmt appears unused. Verify use (or export if used externally).
 _VERSION="cfg2html-linux version ${VERSION} "  # this a common stream so we don?t need the "Proliant stuff" anymore
 
 #
 # getopt
 #
 
-while getopts ":o:shxOcSTflkenaHLvhpPA2:10" Option   ##  -T -0 -1 -2 backported from HPUX # added new options -x and -O and removed the need for an argument on -A # modified on 20201026 by edrulrd
+while getopts ":o:shxOcSTflzkenaHLvhpPAV2:10w:" Option   ##  -T -0 -1 -2 backported from HPUX # added new options -x and -O and removed the need for an argument on -A, also added -w, -z  and -V # modified on 20240119 by edrulrd
 do
   case ${Option} in
     o     ) OUTDIR=${OPTARG};;
-    v     ) echo ${_VERSION}"// $(uname -mrs)"; exit 0;; ## add uname output, see YG MSG 790 ##
-    h     ) echo ${_VERSION}; usage; exit 0;;  ## regression, issue #165
+    v     ) echo "${_VERSION}""// $(uname -mrs)"; exit 0;; ## add uname output, see YG MSG 790 ##
+    h     ) echo "${_VERSION}"; usage; exit 0;;  ## regression, issue #165
     s     ) CFG_SYSTEM="no";;
     x     ) CFG_PATHLIST="no";; # don't generate the list of executables in the PATH # added on 20201025 by edrulrd
     O     ) CFG_LSOFDEL="no";; # skip showing the list of open files that have been deleted # added on 20201026 by edrulrd
@@ -104,16 +112,19 @@ do
     S     ) CFG_SOFTWARE="no";;
     f     ) CFG_FILESYS="no";;
     l     ) CFG_LVM="no";;
+    z     ) CFG_ZFS="no";; # skip showing information about our zfs filesystems # added on 20240119 by edrulrd
     k     ) CFG_KERNEL="no";;
     e     ) CFG_ENHANCEMENTS="no";;
     n     ) CFG_NETWORK="no";;
     a     ) CFG_APPLICATIONS="no";;
     H     ) CFG_HARDWARE="no";;
+    V     ) CFG_VMWARE="no";;
+    A     ) CFG_ALTIRISAGENTFILES="no";;
     L     ) CFG_STINLINE="no";;
+    w     ) CFG_TEXTWIDTH="${OPTARG}";; # override the default width in the generated .txt file for section titles # added on 20240119 by edrulrd
     p     ) CFG_HPPROLIANTSERVER="yes";;
     P     ) CFG_PLUGINS="yes";;
-    A     ) CFG_ALTIRISAGENTFILES="no";;
-    2     ) CFG_DATE="_"$(date +${OPTARG}) ;;
+    2     ) CFG_DATE="_"$(date +"${OPTARG}") ;;
     1     ) CFG_DATE="_"$(date +%d-%b-%Y) ;;
     0     ) CFG_DATE="_"$(date +%d-%b-%Y-%H%M) ;;
     T     ) CFG_TRACETIME="yes";;   # show each exec_command with timestamp
@@ -121,15 +132,13 @@ do
   esac
 done
 
-shift $((${OPTIND} - 1))
+shift $((OPTIND - 1))
 # Decrements the argument pointer so it points to next argument.
 
-#
 # linux port
 MAILTO="&#106;&#101;&#114;&#111;&#101;&#110;&#46;&#107;&#108;&#101;&#101;&#110;&#64;&#104;&#112;&#46;&#99;&#111;&#109;"
 MAILTORALPH="cfg2html&#64;&#104;&#111;&#116;&#109;&#97;&#105;&#108;&#46;&#99;&#111;&#109;"
 # changed/added 08.07.2003 (13:04) by Ralph Roth
-
 
 #####################################################################
 # @(#)Cfg2Html (c) by ROSE SWE, Dipl.-Ing. Ralph Roth, cfg2html@hotmail.com
@@ -158,9 +167,6 @@ MAILTORALPH="cfg2html&#64;&#104;&#111;&#116;&#109;&#97;&#105;&#108;&#46;&#99;&#1
 # 15-May-2006  Common stream for cfg2html-linux and the Proliant version
 
 
-
-# echo "" # should be a newline, more portable? # rar, 20121230
-
 ## test if user = root
 check_root
 
@@ -171,20 +177,20 @@ define_outfile
 create_dirs
 
 #
-if [ ! -d ${OUTDIR} ] ; then
+if [ ! -d "${OUTDIR}" ] ; then
   echo "can't create ${HTML_OUTFILE}, ${OUTDIR} does not exist - stop"
   exit 1
 fi
-touch ${HTML_OUTFILE}
+touch "${HTML_OUTFILE}"
 #echo "Starting up ${VERSION}\r"
-[ -s "${ERROR_LOG}" ] && rm -f ${ERROR_LOG} 2> /dev/null
+[ -s "${ERROR_LOG}" ] && rm -f "${ERROR_LOG}" 2> /dev/null
     DATE=$(date "+%Y-%m-%d") # ISO8601 compliant date string
 DATEFULL=$(date "+%Y-%m-%d@%H:%M:%S") # ISO8601 compliant date and time string
 
 # [20200311] {jcw} My comment; this restarts the process from within this same shell; all errors now go to the named log file.
-exec 2> ${ERROR_LOG}
+exec 2> "${ERROR_LOG}"
 
-if [ ! -f ${HTML_OUTFILE} ]; then
+if [ ! -f "${HTML_OUTFILE}" ]; then
      line
      _banner "Error"
      _echo "You do not have the rights to create the file ${HTML_OUTFILE}! (NFS?)\n"
@@ -192,7 +198,7 @@ if [ ! -f ${HTML_OUTFILE} ]; then
 fi
 
 # [20200312] {jcw} 1st logger for starting.
-[ $(which logger) ] && export _logger="$(which logger)" || export _logger='echo'   # [20200311] {jcw} Aliased logger, just in case.
+[ "$(which logger 2>/dev/null)" ] && export _logger="$(which logger)" || export _logger='echo'   # [20200311] {jcw} Aliased logger, just in case. # added /dev/null # modified on 20240202 by edrulrd
 ${_logger} "1st Start of cfg2html-linux ${VERSION}"
 RECHNER=$(hostname)         # `hostname -f`
 VERSION_=$(echo "${VERSION}/${RECHNER}"|tr " " "_")
@@ -207,35 +213,42 @@ identify_linux_distribution
 ####################################################################
 # needs improvement!
 # trap "echo Signal: Aborting!; rm ${HTML_OUTFILE}"  2 13 15
-
 ####################################################################
 
 #
 ######################################################################
 #############################  M A I N  ##############################
 ######################################################################
-
 #
 
 line
 echo "Starting:          ${_VERSION}"
-echo "Path to cfg2html:  "$0
-echo "HTML Output File:  "${HTML_OUTFILE}
-echo "Text Output File:  "${TEXT_OUTFILE}
-echo "Partitions:        "${OUTDIR}/${BASEFILE}.partitions.save
-echo "Errors logged to:  "${ERROR_LOG}
+echo "Path to cfg2html:  $0"
+echo "HTML Output File:  ${HTML_OUTFILE}"
+echo "Text Output File:  ${TEXT_OUTFILE}"
+echo "Partitions:        ${OUTDIR}/${BASEFILE}.partitions.save"
+echo "Errors logged to:  ${ERROR_LOG}"
 # echo "Commandline:        ${*}"            ## for issue #154, seems not to be exported?
 
 # [20200312] {jcw} Helpful docs for [ .vs. [[ at:
 #            https://unix.stackexchange.com/questions/32210/why-does-parameter-expansion-with-spaces-without-quotes-work-inside-double-brack
-[[ -f ${CONFIG_DIR}/local.conf ]] && { echo "Local config      "${CONFIG_DIR}/local.conf "( $(grep -v -E '(^#|^$)' ${CONFIG_DIR}/local.conf | wc -l) lines)"; }
+[[ -f ${CONFIG_DIR}/local.conf ]] && { echo "Local config      ${CONFIG_DIR}"/local.conf "$(grep -vc -E '(^#|^$)' "${CONFIG_DIR}"/local.conf) lines"; }
 
-echo "Started at        "${DATEFULL}
+echo "Started at        ${DATEFULL}"
 echo "WARNING           USE AT YOUR OWN RISK!!! :-))           <<<<<"
 line
 
+# Check the numerical value of CFG_TEXTWIDTH, and complain if not a number # added on 20240202 by edrulrd
+if [[ "${CFG_TEXTWIDTH}" =~ ^[0-9]+$ ]]
+then
+  [ "${CFG_TEXTWIDTH}" -ne ${COLUMNS} ] && COLUMNS=${CFG_TEXTWIDTH} # set COLUMNS variable if CFG_TEXTWIDTH changed # added on 20240202 by edrulrd
+else
+  echo "Improper -w value given:  width value must be numerical. Try -h for help!"
+  exit 1
+fi
+
 # 2nd one for starting.
-${_logger} "2nd Start of cfg2html-linux ${VERSION}"
+${_logger} "2nd Start of cfg2html-linux ${VERSION}!"
 open_html
 inc_heading_level
 
@@ -249,6 +262,7 @@ then # else skip to next paragraph
 paragraph "Linux System:  [${distrib}]"   ## empty? ## FIXME ###
 inc_heading_level
 
+  # Given the existence of the virt-what command, do we still need this section of code? # added on 20240303 by edrulrd
   ###################################################################################################################################################################
   # [20200324] {jcw}  Added section for determining if this is a physical host (Red Hat KVM/xen or VMware ESX) or virtual machine (VM).
   #                   When it is a VMware VM, identify the version of VMware Tools installed, and if that is current and active.
@@ -256,9 +270,10 @@ inc_heading_level
   #                   One good reference for this is: http://www.dmo.ca/blog/detecting-virtualization-on-linux
   #
 
-  DMESG=$(which dmesg 2>/dev/null)         # Added 20201004 by edrulrd
+  DMESG=$(which dmesg 2>/dev/null)         # Added 20201004 by edrulrd, a possible solution could be using the same trick as done in gdha/upgrade-ux#135
   DMIDECODE=$(which dmidecode 2>/dev/null) # Added 20201004 by edrulrd
-  LSCPI=$(which lspci 2>/dev/null)         # Added 20201004 by edrulrd
+  LSPCI=$(which lspci 2>/dev/null)         # Added 20201004 by edrulrd # fixed typo on 20240303 by edrulrd
+  JOURNAL=$(which journalctl 2>/dev/null)  # Added 20240303 by edrulrd
 
   # It is better to check on a host for the existence of /usr/sbin/esxupdate. Existence of that binary, and its response, will truly indicate an ESX host.
   PhysHost='TRUE'               # General term. Default, and its state is kept beyond this section. Assumed TRUE at the beginning.  TRUE indicates NO   form of Virt Guest.
@@ -266,6 +281,7 @@ inc_heading_level
 
   # These are flags indicating if anything related to their virtualization-type has been found (or not).
   # Searching for •virtual' by itself is a bad start, as there are numerous exceptions, non-virtualization related. VMdom0= 11false 11 # term was positively found; Xen-related
+  VMdom0='false'                # term was positively found; Xen-related, privileged domain 0 vm # added on 20240303 by edrulrd
   VMdomU='false'                # term was positively found; Xen-related
   VMkvm='false'                 # 'kvm' term was positively found.
   VMKVM='false'                 # KVM-type has been found.
@@ -282,37 +298,47 @@ inc_heading_level
 
   touch PhysVirt.info_Pt2; chmod 0600 PhysVirt.info_Pt2; chown 0:0 PhysVirt.info_Pt2; sync;sync
 
-  for VIRTs in domo domu kvm paravirt qemu virtio vmware xen; do
+  for VIRTs in dom0 domu kvm paravirt qemu virtio vmware xen; do # look for these strings in various places # fix typo in dom0 # modified on 20240303 by edrulrd
       VIRTterm='unset'                                        # Local value used within the loop.
 
       VIRTci='unset'                                          # /proc/cpuinfo   # These are only used to display state.
       VIRTdc='unset'                                          # dmesg command
       VIRTdf='unset'                                          # /var/log/dmesg {the long output}
+      VIRTjn='unset'                                          # journal file if available
       VIRTdd='unset'                                          # dmidecode {the command}
       VIRTls='unset'                                          # /sbin/lspci {the command}
 
       # These are only indented this way so as to visually distinguish them; there is no desire/need to if-then-else them!
-      if [ "$(cat /proc/cpuinfo | grep -i ${VIRTs})" ]; then
+      if  grep -iq "${VIRTs}" /proc/cpuinfo ; then
            VIRTterm='TRUE'
            VIRTci='TRUE'
       fi
 
       # These are only indented this way so as to visually distinguish them; there is no desire/need to if-then-else them!
-      if [ -n "${DMESG}" ] && [ "$(${DMESG} | grep -i ${VIRTs})" ]; then
+      if [ -n "${DMESG}" ] &&  ${DMESG} | grep -iq ${VIRTs} ; then
            # Using the 'dmesg' command is useful for some number of days after the system was last booted;
            # beyond that, the /var/log/dmesg file is a good alternate datapoint.
-           if [ ! "$(${DMESG} | grep 'Booting paravirtualized kernel on bare hardware')" ]; then
+           # See also https://github.com/cfg2html/cfg2html/issues/153
+           if ! ${DMESG} | grep -q 'Booting paravirtualized kernel on bare hardware' ; then
                 # This exception catches the one case of installing RHEL/CentOS on a real physical machine.  This IS properly/necessarily nested!
                 VIRTterm='TRUE'
                 VIRTdc='TRUE'
            fi
       fi
 
-      if [ "$(grep -i ${VIRTs} /var/log/dmesg 2>/dev/null)" ]; then
-           if [ ! "$(${DMESG} | grep 'Booting paravirtualized kernel on bare hardware')" ]; then
+      if grep -iq ${VIRTs} /var/log/dmesg 2>/dev/null ; then
+           if ! grep -q 'Booting paravirtualized kernel on bare hardware' /var/log/dmesg 2>/dev/null ; then # check the file for the string # modified on 20240411 by edrulrd
                   # This exception catches the one case of installing RHEL/CentOS on a real physical machine.  This IS properly/necessarily nested!
                   VIRTterm='TRUE'
                   VIRTdf='TRUE'
+           fi
+      fi
+
+      if [ -n "${JOURNAL}" ] &&  ${JOURNAL} --system --boot 2>/dev/null | grep -iq ${VIRTs} ; then # added on 20240303 by edrulrd
+           # some systems don't have /var/log/dmesg, so, let's try to use the system journal since bootup instead as another source # added on 20240303 by edrulrd
+           if ! ${JOURNAL} --system --boot 2>/dev/null | grep -q 'Booting paravirtualized kernel on bare hardware' ; then
+                VIRTterm='TRUE'
+                VIRTjn='TRUE'
            fi
       fi
 
@@ -334,11 +360,14 @@ inc_heading_level
                 # Is one way to determine it.
                 ESXhost='TRUE'
            else
-                if [ -n "${DMESG}" -a "$(${DMESG} | grep -i vmxnet)" != "" ] || [ -n "${DMIDECODE}" -a "$(${DMIDECODE} | grep -i vmxnet)" != "" ]; then # modified on 20201004 by edrulrd, Prefer [ p ] && [ q ] as [ p -a q ] is not well defined.
+                if [ -n "${DMESG}" ] && [ "$(${DMESG} | grep -i vmxnet)" != "" ] || [ -n "${DMIDECODE}" ] && [ "$(${DMIDECODE} | grep -i vmxnet)" != "" ]; then # modified on 20201004 by edrulrd
                      VIRTterm='TRUE'
                 fi
-                # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Have to add options to check sytemctl, too.
-                if [ "$(rpm -qa 2>/dev/null | grep -i vmware | grep -i tools)" ] || [ "$(service --status-all 2>&1 | grep -i vmtoolsd)" ] || [ -e /etc/rc.d/init.d/vmware-tools ]; then
+
+                if which rpm 2>/dev/null 1>&2 && rpm -qa 2>/dev/null | grep -i vmware | grep -iq tools ||
+                  ( which service 2>/dev/null 1>&2 && service --status-all 2>&1 | grep -iq vmtoolsd ) ||
+                  ( which systemctl 2>/dev/null 1>&2 && systemctl 2>&1 | grep -iq vmtoolsd ) ||
+                  [ -e /etc/rc.d/init.d/vmware-tools ]; then # check for commands being available # modified on 20240322 by edrulrd
                      # Means vmware-tools (but not something like 'xorg-xll-drv-vmware-10.13.0-2.1') might be installed, which makes it a VMware VM.
                      # MIGHT have to exclude 'xorg-xll-drv-vmware-10.13.0-2.1' and the like from satisfying the check.
                      VIRTterm='TRUE'
@@ -358,7 +387,7 @@ inc_heading_level
       if [ "${VIRTterm}" == 'TRUE' ]; then
            case ${VIRTs} in
                     dom0) #
-                          VMdomO='TRUE'
+                          VMdom0='TRUE' # fixed typo on 20240303 by edrulrd
                           VMXEN='TRUE'
                           ;;
                     domU) #
@@ -395,43 +424,59 @@ inc_heading_level
            ESXhost='false'
            VirtMach='TRUE'
            # Determinations are over for ${VIRTs} ... now generate output line.
-           echo "VIRTs(${VIRTs}), VIRTterm (${VIRTterm}):"                                                                                                                  >> PhysVirt.info_Pt2
-           echo "VIRTci(${VIRTci}), VIRTdc(${VIRTdc}), VIRTdf(${VIRTdf}), VIRTdd(${VIRTdd}), VIRTls(${VIRTls})."                                                            >> PhysVirt.info_Pt2
-           echo "PhysHost(${PhysHost}), VirtMach(${VirtMach}), VMdom0(${VMdom0}), VMdomU(${VMdomU}), VMkvm(${VMkvm}), VMKVM(${VMKVM}), VMparavirtkrnl(${VMparavirtkrnl}),"  >> PhysVirt.info_Pt2
-           echo "VMqemu(${VMqemu}), VMvirtio(${VMvirtio}), VMxen(${VMxen}), VMXEN(${VMXEN}), ESXhost(${ESXhost}), VMTver(${VMTver}), VMware(${VMware})."                    >> PhysVirt.info_Pt2
+           ( echo "VIRTs(${VIRTs}), VIRTterm (${VIRTterm}): VIRTci(${VIRTci}), VIRTdc(${VIRTdc}), VIRTdf(${VIRTdf}), VIRTjn(${VIRTjn}), VIRTdd(${VIRTdd}), VIRTls(${VIRTls})."
+           echo "PhysHost(${PhysHost}), VirtMach(${VirtMach}), VMdom0(${VMdom0}), VMdomU(${VMdomU}), VMkvm(${VMkvm}), VMKVM(${VMKVM}), VMparavirtkrnl(${VMparavirtkrnl}), VMqemu(${VMqemu}), VMvirtio(${VMvirtio}), VMxen(${VMxen}), VMXEN(${VMXEN}), ESXhost(${ESXhost}), VMTver(${VMTver}), VMware(${VMware})."
+           echo ) >> PhysVirt.info_Pt2 # make more readable # modified on 20240303 by edrulrd
       fi
   done
-  echo ' ' >> PhysVirt.info_Pt2
+
+  ( echo "Note: the physical or virtual environment state was determined by searching for each of these case-insensitive strings:"
+  echo '      "dom0", "domU", "kvm", "paravirt", "qemu", "virtio", "xen", and "vmware"'
+  echo "      from within the following sources:"
+  echo "      /proc/cpuinfo, dmesg command, /var/log/dmesg file, journalctl command, dmidecode command, and the lspci command."
+  echo "      If the searches failed or if the logs expressly indicated not being virtual, then the system is deemed to be Physical."
+  echo ' ' ) >> PhysVirt.info_Pt2 # modified on 20240322 by edrulrd
 
   if [ ${PhysHost} == 'TRUE' ]; then
-       echo "This host is Physical, PhysHost=(${PhysHost}); vice Virtual, VirtMach=(${VirtMach})."    >> PhysVirt.info
-       echo ' '                                                                                       >> PhysVirt.info
-       cat PhysVirt.info_Pt2                                                                          >> PhysVirt.info
+       ( echo "This host is Physical, as PhysHost=(${PhysHost}); and not Virtual, as VirtMach=(${VirtMach})."
+       echo ' ' ) >> PhysVirt.info # made more readable # modified on 20240303 by edrulrd
+       cat PhysVirt.info_Pt2 >> PhysVirt.info
        exec_command "cat PhysVirt.info" 'Host is Physical.'  ## fixed
   else
-       echo "This host is Virtual:  VirtMach=(${VirtMach}); vice Physical, PhysHost=(${PhysHost})."   >> PhysVirt.info
-       echo ' '                                                                                       >> PhysVirt.info
-       cat PhysVirt.info_Pt2                                                                          >> PhysVirt.info
+       ( echo "This host is Virtual, as VirtMach=(${VirtMach}); and not Physical, as PhysHost=(${PhysHost})."
+       echo ' ' ) >> PhysVirt.info # made more readable # modified on 20240303 by edrulrd
+       cat PhysVirt.info_Pt2 >> PhysVirt.info
        exec_command "cat PhysVirt.info" 'Host is Virtual.'
   fi
   /bin/rm -f PhysVirt.info PhysVirt.info_Pt2
   unset VMdom0 VMdomU VMkvm VMKVM VMparavirtkrnl VMqemu VMvirtio VMxen VMXEN ESXhost VMTver VMware; sync
   ###################################################################################################################################################################
 
-  if [ -f ${CONFIG_DIR}/systeminfo ] ; then
+  if [ -x /usr/sbin/virt-what ] && VIRTWHAT="$(/usr/sbin/virt-what)" ; then # moved virt-what adjacent to our code that checks if we're virtual # modified on 20240303 by edrulrd
+    if [ -n "$VIRTWHAT" ] ; then # output generated, therefore not physical  # added on 20240303 by edrulrd
+       exec_command "/usr/sbin/virt-what" "Virtual Machine Status" # changed Check to Status on 20240303 by edrulrd
+    else
+       exec_command "echo 'virt-what: running on bare-metal, or running inside a type of virtual machine that is not known'" "Virtual Machine Status" # added on 20240303 by edrulrd
+    fi
+  else
+       echo 'To best determine the type of virtual environment this system may be running in, you should consider installing the distribution'\''s "virt-what" package' >&2 # make suggestion in errorlog # added on 20240303 by edrulrd
+  fi
+
+  if [ -f "${CONFIG_DIR}"/systeminfo ] ; then
     exec_command "cat ${CONFIG_DIR}/systeminfo" "System description"
   fi
 
-  # [20200324] {jcw} Seperated these-->exec_command "cat /proc/cpuinfo; echo; /usr/bin/lscpu;" "CPU and Model info" #  20.08.2012, 15:59 modified by Ralph Roth #* rar *#
+  # [20200324] {jcw} Separated these-->exec_command "cat /proc/cpuinfo; echo; /usr/bin/lscpu;" "CPU and Model info" #  20.08.2012, 15:59 modified by Ralph Roth #* rar *#
   exec_command "cat /proc/cpuinfo" "CPU and Model info"
   [ -x /usr/bin/lscpu ] && exec_command "/usr/bin/lscpu" "CPU Architecture Information Helper"
-  [ -x /usr/bin/cpufreq-info ] && exec_command cpufreq-info "CPU Frequenc Information"
+  [ -x /usr/bin/cpufreq-info ] && exec_command cpufreq-info "CPU Frequency Information" # noted to be replaced by cpupower # comment added on 20240119 by edrulrd
 
-  CPUPOWER=$(which cpupower)
+  CPUPOWER=$(which cpupower 2>/dev/null) # added /dev/null # modified on 20240202 by edrulrd
   if [ -n "${CPUPOWER}" ] && [ -x "${CPUPOWER}" ] ; then
+      exec_command "${CPUPOWER} frequency-info" "CPU Frequency Information"  ## closes issue #53 - rr, 20140725 # replacement for cpufreq-info cmd # added on 20240119 by edrulrd
       exec_command "${CPUPOWER} idle-info" "Processor idle state information"  ## closes issue #53 - rr, 20140725
       exec_command "${CPUPOWER} info" "Processor power related kernel or hardware configuration"
-      exec_command "${CPUPOWER} monitor" "Monitor"
+      exec_command "${CPUPOWER} monitor" "Processor Monitor"
   fi
 
   exec_command  HostNames "uname and hostname details"
@@ -445,22 +490,29 @@ inc_heading_level
       exec_command "${HOSTNAMECTL}" "Hostname settings"
   fi
 
-  [ -x /usr/bin/lsb_release ] && exec_command "/usr/bin/lsb_release -a 2>\/dev\/null" "Linux Standard Base Version" #modified on 20201026 by edrulrd
+  [ -x /usr/bin/lsb_release ] && exec_command "/usr/bin/lsb_release -a 2>/dev/null" "Linux Standard Base Version" #modified on 20201026 and 20240303 by edrulrd
   for i in /etc/*-release
   do
-      [ -r ${i} ] && exec_command "cat ${i}" "OS Specific Release Information for (${i})"
+      [ -r "${i}" ] && exec_command "cat ${i}" "OS Specific Release Information for (${i})"
   done; unset i
 
   ### Begin changes by Dusan.Baljevic@ieee.org ### 13.05.2014
-      if [ -x /usr/bin/virsh ] ; then
-        exec_command "/usr/bin/virsh list" "virsh Virtualization Support Status"
-        exec_command "/usr/bin/virsh sysinfo" "virsh XML Hypervisor Sysinfo"
-      fi
-
-      if [ -x /usr/sbin/virt-what ] ; then
-        exec_command "/usr/sbin/virt-what" "Virtual Machine Check"
+      if [ -x /usr/bin/virsh ] && virsh list 2>/dev/null 1>&2 ; then # process virsh commands if the libvirtd daemon is available # modified on 20240411 by edrulrd
+        exec_command "${TIMEOUTCMD} 20 /usr/bin/virsh list --all" "virsh Virtualization Support Status" # show status of all VMs # modified on 20240303 by edrulrd
+        exec_command "${TIMEOUTCMD} 20 /usr/bin/virsh net-list" "virsh Virtual Network List" # list the virtual networks # added on 20240303 by edrulrd
+        for network in $(${TIMEOUTCMD} 20 /usr/bin/virsh net-list | tail -n +3 | awk '{print $1}') # added on 20240303 by edrulrd
+        do
+          exec_command "${TIMEOUTCMD} 20 /usr/bin/virsh net-info ${network}" "virsh Virtual Network info for ${network}" # show  virtual network status # added on 20240303 by edrulrd
+        done
+        exec_command "${TIMEOUTCMD} 20 /usr/bin/virsh sysinfo" "virsh XML Hypervisor Sysinfo"
+        AddText "Hint: You may need to view your browser's page source to see the XML tags, or refer to the ASCII report" # xml tags are taken out (at least) by Firefox # modified on 20240119 by edrulrd
       fi
   ### End changes by Dusan.Baljevic@ieee.org ### 14.05.2014
+
+  if which xl 2>/dev/null 1>&2 ; then # added Xen virtualization info # added on 20240303 by edrulrd
+    exec_command "xl info" "Xen Host information"
+    exec_command "xl list -n" "Xen Domains list"
+  fi
 
   ### Begin changes by Dusan.Baljevic@ieee.org ### 31.08.2014
       if [ -x /usr/bin/machinectl ] ; then
@@ -489,7 +541,7 @@ inc_heading_level
 
   # [20200407] {jcw} It's funny, the getconf man-page does not even mention the -a argument, nor does `getconf --help` (they are dated back to 2003, though).
   #                  A good reference page is:  www.mkssoftware.com/docs/man1/getconf.1.asp
-  exec_command "getconf -a | sort" "System Configuration Variables"   ## at least SLES11, #  14.06.2011, 18:53 modified by Ralph Roth #* rar *#      ## [20200407] {jcw} added sort.
+  which getconf 2>/dev/null 1>&2 && exec_command "getconf -a | sort | column -c ${CFG_TEXTWIDTH}" "System Configuration Variables"   ## at least SLES11, #  14.06.2011, 18:53 modified by Ralph Roth #* rar *#      ## [20200407] {jcw} added sort. # confirm getconf exists # modified on 20240322 by edrulrd
 
   if [ -x /usr/bin/mpstat ] ; then
     exec_command "mpstat 1 5" "MP-Statistics"
@@ -501,17 +553,18 @@ inc_heading_level
   if [ "${CFG_PATHLIST}" != "no" ] # Added on 20201026 by edrulrd
   then # else skip to next paragraph # Added on 20201026 by edrulrd
     # Include information regarding the PATH # Added on 20201025 by edrulrd
-    exec_command "echo ${0} was called with PATH set to: ${CallingPATH}" "PATH Settings" # Added on 20201025 by edrulrd
-    AddText "and this program is using PATH set to: ${PATH}" # Added on 20201025 by edrulrd
+    exec_command "" "PATH Settings" # don't display the N/A message # Added on 20201025 by edrulrd # modified on 20240119 by edrulrd
+    AddText "${0} was called with PATH set to: \"${CallingPATH}\", but" # Added on 20201025 by edrulrd # modified on 20240119 by edrulrd
+    AddText "it generated this report using the PATH set to: \"${PATH}\"" # Added on 20201025 by edrulrd # modified on 20240119 by edrulrd
 
     if [ -n "${LOCALPATH}" ] # check if we want to list the executables in a different path # added on 20201113 by edrulrd
     then
-      AddText "LOCALPATH specified.  Files in "${LOCALPATH}" follow:" # Added on 20201113 by edrulrd
-      echo ${LOCALPATH} | sed 's/:/\n/g' | while read i # Confirm each entry present in the directory list is a folder # added on 20201113 by edrulrd
+      AddText "LOCALPATH specified.  Files existing in \"${LOCALPATH}\" follow:" # Added on 20201113 by edrulrd # modified on 20240119 by edrulrd
+      echo "${LOCALPATH}" | sed 's/:/\n/g' | while read -r i # Confirm each entry present in the directory list is a folder # added on 20201113 by edrulrd
       do
-        if [ -e "${i}" -a ! -d "${i}" ] # if the entry exists and isn't a directory, then flag it # added on 20201113 by edrulrd
+        if [ -e "${i}" ] && [ ! -d "${i}" ] # if the entry exists and isn't a directory, then flag it # added on 20201113 by edrulrd
         then
-          AddText "Error: "${i}" in "${LOCALPATH}" is not a directory" # Added on 20201113 by edrulrd
+          AddText "Error: ${i} in ${LOCALPATH} is not a directory" # Added on 20201113 by edrulrd
           exit 1 # Added on 20201113 by edrulrd
         fi
       done
@@ -521,49 +574,34 @@ inc_heading_level
     fi
 
     # Get all the executable files including soft-links in the PATH and generate a sorted list # Added on 20201025 by edrulrd
-    exec_command "for Directory in $(/bin/echo ${LISTPATH} |
-    sed 's/:/ /g');
-    do
-      find \$Directory -executable \( -type f -o -type l \) -print 2>\/dev\/null |
-      sort |
-      while read Filename;
-        do
-          /bin/echo -n \$(basename \${Filename});
-          /bin/echo -n ' ';
-          ls -al \${Filename} |
-          awk '{\$1=\"\";\$2=\"\";\$3=\"\";\$4=\"\";\$5=\"\";\$6=\"\";\$7=\"\";\$8=\"\";print}' |
-          sed 's/^        //';
-        done
-    done |
-    sort -k1,1 -u |
-    awk '{\$1=\"\"; print}' |
-    sed 's/^ //'" "Executable Commands found in $LISTPATH" # Added on 20201025 by edrulrd
+    exec_command "DoPATHList ${LISTPATH}" "Executable Commands found in $LISTPATH" # Added on 20201025 by edrulrd # moved into a function # modified on 20240202 by edrulrd
     unset LISTPATH
     # End of code added on 20201025 by edrulrd
   fi # terminates CFG_PATHLIST wrapper # added on 20201026 by edrulrd
 
   if [ "${CFG_LSOFDEL}" != "no" ] # added on 20201026 by edrulrd
   then # else skip to next paragraph # added on 20201026 by edrulrd
-    exec_command "lsof -nP 2>\/dev\/null | grep '(deleted)'" "Files that are open but have been deleted" # modified on 20201026 by edrulrd
+    exec_command "lsof -nP 2>/dev/null | grep '(deleted)'" "Files that are open but have been deleted" # modified on 20201026 and 20240303 by edrulrd
   fi # terminates CFG_LSOFDEL wrapper # added on 20201026 by edrulrd
 
   # In "used memory.swap" section I would add :
   # free -tl     (instead of free, because it gives some more useful infos, about HighMem and LowMem memory regions (zones))
   # cat /proc/meminfo (in order to get some details of memory usage)
 
+  # ESXHost and /tmp/ProcKernMem.info is not referenced anywhere in our code, so it was commented out # added on 20240303 by edrulrd
   # [20200409] {jcw} Added section for processor, kernel and memory status details
-  ESXHost='false'; [ -e /usr/sbin/esxupdate ] && [ $(rpm -qa | grep -i vmware-esx | wc -l | tr -d' ') -ge 2 ] && ESXHost='TRUE'
-  echo "Identify processor architecture, installed OS architecture, and the type/amount fo system memory (best approximation)."                     > /tmp/ProcKernMem.info
-  echo "Note:  Math rounding may result in displaying a slightly smaller number than actually installed/configured (g=GB, m=MB, k=KB, b=bytes)."   >> /tmp/ProcKernMem.info
-  echo "       kcore line is processed from size of '/proc/kcore'; free is processed from 'free' command."                                         >> /tmp/ProcKernMem.info
-  echo "---------------------------------------------------------------------------------------------------------------------------------------"   >> /tmp/ProcKernMem.info
+  #ESXHost='false'; [ -e /usr/sbin/esxupdate ] && [ $(rpm -qa | grep -i vmware-esx | wc -l | tr -d' ') -ge 2 ] && ESXHost='TRUE'
+  #echo "Identify processor architecture, installed OS architecture, and the type/amount of system memory (best approximation)."                     > /tmp/ProcKernMem.info
+  #echo "Note:  Math rounding may result in displaying a slightly smaller number than actually installed/configured (g=GB, m=MB, k=KB, b=bytes)."   >> /tmp/ProcKernMem.info
+  #echo "       kcore line is processed from size of '/proc/kcore'; free is processed from 'free' command."                                         >> /tmp/ProcKernMem.info
+  #echo "---------------------------------------------------------------------------------------------------------------------------------------"   >> /tmp/ProcKernMem.info
 
 
 
 
   # 20190828, rr - swapon -s is deprecated, better use --show
-  exec_command "free -tml;echo;free -tm;echo; swapon --show;swapon -s" "Used Memory and Swap Summary" #  04.07.2011+05.07.2018 modified by Ralph Roth #* rar *#
-  exec_command "cat /proc/meminfo; echo THP:; cat /sys/kernel/mm/transparent_hugepage/enabled" "Detailed Memory Usage (meminfo)"  # changed 20131218 by Ralph Roth
+  exec_command "free -tml; echo; free -tm; echo; swapon --show 2>/dev/null ; echo; swapon -s" "Used Memory and Swap Summary" #  04.07.2011+05.07.2018 modified by Ralph Roth #* rar *# discard error msg if --show n/a # modified on 20240411 by edrulrd
+  exec_command "cat /proc/meminfo; [ -s /sys/kernel/mm/transparent_hugepage/enabled ] && ( echo THP:; cat /sys/kernel/mm/transparent_hugepage/enabled )" "Detailed Memory Usage (meminfo)"  # changed 20131218 by Ralph Roth # THP not found on Xen host(?) # modified on 20240303 by edrulrd
   exec_command "cat /proc/buddyinfo" "Zoned Buddy Allocator/Memory Fragmentation and Zones" 	#  09.01.2012 Ralph Roth
   AddText "The number on the left is bigger than right (by factor 2)."
   # ripped from Dusan Baljevic ## changed 20131211 by Ralph Roth
@@ -581,15 +619,15 @@ inc_heading_level
       #                 ${cntb}++;
       #             }
 
-  exec_command "cat /proc/slabinfo" "Kernel slabinfo Statistics" 	                # changed 20131211 by Ralph Roth
+  exec_command "cat /proc/slabinfo | sed 's/# name/#name/' | tr '<' ' ' | tr '>' ' ' | awk 'NR<3{print;next}{print | \"sort -k3,3nr -k1,1\"}' | column -t -c ${CFG_TEXTWIDTH}" "Kernel slabinfo Statistics" # changed 20131211 by Ralph Roth # added column command to put the output in an aligned table after sorting it in descending order by number  of objects $ modified on 20240119 by edrulrd
   AddText "Frequently used objects in the Linux kernel (buffer heads, inodes, dentries, etc.) have their own cache.  The file /proc/slabinfo gives statistics."
   exec_command "cat /proc/pagetypeinfo" "Additional page allocator information" 	# changed 20131211 by Ralph Roth
   exec_command "cat /proc/zoneinfo" "Per-zone page allocator" 		                # changed 20131211 by Ralph Roth
 
   if [ -x /usr/bin/vmstat ] ; then        ## <c/m/a>  14.04.2009 - Ralph Roth
     ## [20200408] {jcw} expanded 'VM' to Virtual Memory, to avoid confusion with virtualization.
-    exec_command "vmstat 1 10" "Virtual Memory-Statistics (1 10)"
-    exec_command "vmstat -dn;vmstat -f" "Virtual Memory-Statistics (Summary)"
+    exec_command "vmstat -w 1 10" "Virtual Memory-Statistics (1 10)" # added -w option for readability # modified on 20240119 by edrulrd
+    exec_command "vmstat -dnw; echo; vmstat -f" "Disk Statistics (averages) and Forks since boot" # changed title and added -w option for readability # modified on 20240119 by edrulrd
   fi
 
   # sysutils
@@ -597,29 +635,29 @@ inc_heading_level
   # exec_command "sar 1 9" "System Activity Report"
   # exec_command "sar -b 1 9" "Buffer Activity"
 
-  [ -x /usr/bin/procinfo ] && exec_command "procinfo -a" "System status from /proc" #  15.11.2004, 14:09 modified by Ralph Roth
+  [ -x /usr/bin/procinfo ] && exec_command "procinfo" "System status from /proc" #  15.11.2004, 14:09 modified by Ralph Roth # -a option of procinfo appears deprecated, removed # modified on 20240119 by edrulrd
   # usage: pstree [ -a ] [ -c ] [ -h | -H pid ] [ -l ] [ -n ] [ -p ] [ -u ]
   #               [ -G | -U ] [ pid | user]
-  exec_command "pstree -p -a  -l -G -A" "Active Process - Tree Overview" #  15.11.2004/2011, 14:09 modified by Ralph.Roth
+  exec_command "pstree -a -l -G -A" "Active Process - Tree Overview" #  15.11.2004/2011, 14:09 modified by Ralph.Roth # removed -p (pid) flag to compact the report # modified on 20240119 by edrulrd
                 # changed 20131211 by Ralph Roth, # changed 20140129 by Ralph Roth # cmd. line:1: ^ unexpected newline or end of string
   exec_command "ps -e -o ruser,pid,args | awk ' ((\$1+1) > 1) {print \$0;} '" "Processes without a named owner"
   AddText "The output should be empty!"
 
   ## ps aux --sort=-%cpu,-%mem|head -25 ## 06.03.2015
   exec_command "ps -e -o 'time,cmd' --sort -cputime | head -25 | awk '{ printf(\"%10s   %s\\n\", \$1, \$2); }'" "Top load processes" # modified on 20201009 by edrulrd
-  exec_command "ps -e -o 'vsz pid ruser cpu time args' |sort -nr|head -25" "Top memory consuming processes"
+  exec_command "ps -e -o 'vsz pid ruser cpu time args'  --sort=-vsz | head -25" "Top memory consuming processes" # use ps command's sort command instead # modified on 20240119 by edrulrd
   exec_command topFDhandles "Top file handles consuming processes" # 24.01.2013
-  AddText "Hint: Number of open file handles should be less than ulimit -n ("$(ulimit -n)")"
+  AddText "Hint: Number of open file handles should be less than ulimit -n ($(ulimit -n))"
 
                                           #  10.11.2012 modified by Ralph Roth #* rar *# fix for SLES11,SP2, 29.01.2014
   [ -x /usr/bin/pidstat ] && exec_command "pidstat -lrud 2>/dev/null||pidstat -rud" "pidstat - Statistics for Linux Tasks"
 
-  if [ -x "$(which tuned-adm)" ] ; then #  avoid errors if not available # modified on 20201009 by edrulrd
-    exec_command "tuned-adm list" "Tuned Profiles"     	              #06.11.2014, 20:34 added by Dusan Baljevic
-    exec_command "tuned-adm active" "Tuned Active Profile Status"       #06.11.2014, Dusan Baljevic -- see also saptune()
+  if [ -x "$(which tuned-adm 2>/dev/null)" ] ; then #  avoid errors if not available # modified on 20201009 by edrulrd # added /dev/null # modified on 20240202 by edrulrd
+    exec_command "tuned-adm list 2>/dev/null" "Tuned Profiles"     	              #06.11.2014, 20:34 added by Dusan Baljevic # discard daemon not running comment # modified on 20240202 by edrulrd
+    exec_command "tuned-adm active 2>/dev/null" "Tuned Active Profile Status"       #06.11.2014, Dusan Baljevic -- see also saptune() # discard daemon not running comment # modified on 20240202 by edrulrd
   fi
   NUMACTL="$(which numactl 2>/dev/null)"                               # modified on 20201004 added by edrulrd
-  if [ -n "${NUMACTL}" -a -x "${NUMACTL}" ] ; then
+  if [ -n "${NUMACTL}" ] && [ -x "${NUMACTL}" ] ; then
     exec_command "${NUMACTL} --hardware" "NUMA Inventory of Available Nodes on the System"     #06.11.2014, added by Dusan Baljevic
   fi
 
@@ -627,21 +665,21 @@ inc_heading_level
   then
 	exec_command "/usr/bin/journalctl --list-boots --no-pager| tail -25" "Last 25 Reboots"  ## changed 20150212 by Ralph Roth
   else
-  	exec_command "last -F| grep reboot | head -25" "Last 25 Reboots"			### RR, 2014-12-19  ##CHANGED##FIXED## 20150212 by Ralph Roth
+    which last 2>/dev/null 1>&2 && exec_command "last -F | grep reboot | head -25" "Last 25 Reboots"			### RR, 2014-12-19  ##CHANGED##FIXED## 20150212 by Ralph Roth # confirm last command is available # modified on 20240322 by edrulrd
   fi
   # common stuff, systemd and old style system-v rc
-  exec_command "last -xF  | grep -E 'system|runlevel' | head -25" "Last 25 runlevel changes or reboots" 	###CHANGED### 20150408 by Ralph Roth # modified on 20201009 by edrulrd
+  which last 2>/dev/null 1>&2 && exec_command "last -xF | grep -E 'system|runlevel' | head -25" "Last 25 runlevel changes or reboots" 	###CHANGED### 20150408 by Ralph Roth # confirm last command is available # modified on 20240322 by edrulrd
 
   ### Begin changes by Dusan.Baljevic@ieee.org ### 13.05.2014
   #     stderr output from " blame":
   #     /usr/share/cfg2html/lib/html-functions.sh: line 107: blame: command not found
 
-  SYSTEMD=$(which systemd-analyze)
-  if [ -x ${SYSTEMD} ] ; then
+  SYSTEMD=$(which systemd-analyze 2>/dev/null) # added /dev/null # modified on 20240202 by edrulrd
+  if [ -x "${SYSTEMD}" ] ; then
      exec_command "${SYSTEMD}" "systemd-analyze Boot Performance Profiler"
      exec_command "${SYSTEMD} blame" "systemd-analyze Boot Sequence and Performance Profiler"
   fi
-  [ -x /usr/bin/systemd-cgls ] && exec_command "/usr/bin/systemd-cgls" "Systemd: Recursively show control group contents" ## SAP HANA
+  [ -x /usr/bin/systemd-cgls ] && exec_command "/usr/bin/systemd-cgls" "Systemd: Recursively show control group contents" ## SAP HANA # output was being cut off, added COLUMNS env var. to etc/default.conf file # modified on 20240119 by edrulrd
 
   [ -r /etc/init/bootchart.conf ] && exec_command "grep -vE '^#' /etc/init/bootchart.conf" "bootchart Boot Sequence and Performance Profiler"
   [ -r /etc/systemd/bootchart.conf ] && exec_command "grep -vE '^#' /etc/systemd/bootchart.conf" "bootchart Boot Sequence and Performance Profiler"
@@ -655,12 +693,12 @@ inc_heading_level
     ## OpenSUSE 12.x # changed 20140213 by Ralph Roth ##BACKPORT##
     exec_command "/usr/bin/systemctl" "Systemd: System and Service Manager"
     exec_command "/usr/bin/systemctl list-units --type service" "Systemd: All Services"
-    exec_command "/usr/bin/systemctl list-unit-files" " Systemd: All Unit Files"
+    exec_command "/usr/bin/systemctl list-unit-files" "Systemd: All Unit Files" # removed extra space in tile # modified on 20240303 by edrulrd
 
     ## new 20140613 by Ralph Roth
     [ -x /usr/bin/journalctl ] && exec_command "/usr/bin/journalctl -b -p 3 --no-pager" "Systemd Journal with Errors and Warnings"
 
-    if [ "${ARCH}" = "yes" ] ; then   ## M.Weiller, LUG-Ottobrunn.de, 2013-02-04 ## OpenSUSE also and SLES12?
+    if [ "${ARCH}" = "yes" ] || [ "${DEBIAN}" = "yes" ] ; then   ## M.Weiller, LUG-Ottobrunn.de, 2013-02-04 ## OpenSUSE also and SLES12? # found to be supported on Debian too # modified on 20240119 by edrulrd
       exec_command "/usr/bin/systemctl --failed" "Systemd: Failed Units"
     fi
   else ## old SYS5 RC stuff!
@@ -668,7 +706,7 @@ inc_heading_level
     ## This may report NOTHING on RHEL 3+4 ##
     [ -x /sbin/chkconfig ] && exec_command "/sbin/chkconfig" "Services Startup"  ## chkconfig -A // SLES // xinetd missing
     [ -x /sbin/chkconfig ] && exec_command "/sbin/chkconfig --list" "Services Runlevel" # rar, fixed 2805-2005 for FC4
-    [ -x /sbin/chkconfig ] && exec_command "/sbin/chkconfig -l --deps" "Services Runlevel and Dependencies" #*# Alexander De Bernardi 25.02.2011
+    [ -x /sbin/chkconfig ] && exec_command "/sbin/chkconfig -l --deps 2>/dev/null" "Services Runlevel and Dependencies" #*# Alexander De Bernardi 25.02.2011 # discard if error # modified on 20240411 by edrulrd
     [ -x /usr/sbin/service ] && exec_command "/usr/sbin/service --status-all 2> /dev/null" "Services - Status"   #  09.11.2011/12022013 by Ralph Roth #* rar *#
     [ -x  /usr/sbin/sysv-rc-conf ] && exec_command " /usr/sbin/sysv-rc-conf --list" "Services Runlevel" # rr, 1002-2008
 
@@ -682,7 +720,7 @@ inc_heading_level
     exec_command " grep -v ^# /etc/rc.config.d/* | grep '=[0-9]'" "Runlevel Settings"
   fi
   [ -r /etc/inittab ] && exec_command "awk '!/#|^ *$/ && /initdefault/' /etc/inittab" "default runlevel"
-  exec_command "/sbin/runlevel" "current runlevel"
+  which runlevel 2>/dev/null 1>&2 && exec_command "runlevel" "current runlevel" # confirm runlevel is in path # modified on 20240322 by edrulrd
 
   # Added by Dusan Baljevic on 24 December 2017
   NEEDRESTART=$(which needs-restarting 2>/dev/null)
@@ -692,12 +730,12 @@ inc_heading_level
 
   # Added by Dusan Baljevic on 24 December 2017
   if [ -x /usr/bin/wdctl ] ; then
-    exec_command "/usr/bin/wdctl" "Hardware watchdog status"
+    exec_command "/usr/bin/wdctl 2>/dev/null" "Hardware watchdog status" # discard error if not available # modified on 20240303 by edrulrd
   fi
 
   # Added by Dusan Baljevic on 24 December 2017
   if [ -x /usr/bin/coredumpctl ] ; then
-    exec_command "/usr/bin/coredumpctl list" "List available coredumps"
+    exec_command "/usr/bin/coredumpctl list 2>&1" "List available coredumps" # added error redirection to get 0 coredumps message, if applicable # modified on 20240119 by edrulrd
   fi
 
   ## we want to display the Boot Messages too ## 30Jan2003 it233 FRU
@@ -745,7 +783,7 @@ inc_heading_level
     if [ -x /bin/authselect ] ; then
       if [[ $(/bin/authselect current) =~ 'Profile ID' ]] ; then
         ACPROFILE=$(/bin/authselect current | grep 'Profile ID' | cut -d' ' -f 3-)
-        exec_command "(/bin/authselect current; echo; /bin/authselect test '${ACPROFILE}')" "System authentication resources"
+        exec_command "/bin/authselect current; echo; /bin/authselect test '${ACPROFILE}' | grep -vE '^#|^ *$'" "System authentication resources" # discard commented and empty lines # modified on 20240202 by edrulrd
       fi
     else
       exec_command "/usr/sbin/authconfig --test" "System authentication resources"
@@ -762,7 +800,20 @@ inc_heading_level
 
   exec_command "cat /etc/passwd" "Password File"  # Added by Dusan.Baljevic@ieee.org 6/11/2014
   exec_command "awk -F: 'BEGIN{OFS=FS}{if ( \$2 != \"*\" ) \$2='x'; print \$0}' /etc/shadow" "Shadow File"  # Added by Dusan.Baljevic@ieee.org 6/11/2014 (issue #83)
-  exec_command "cat /etc/sudoers" "Sudo Config"  # Added by Dusan.Baljevic@ieee.org 6/11/2014
+  exec_command "grep -vE '^#|^ *$' /etc/sudoers" "Sudo Config"  # Added by Dusan.Baljevic@ieee.org 6/11/2014 # don't display blank or commented out lines # modified on 20240119 by edrulrd
+
+  # we also show  any local sudoers files under /etc/sudoers.d  # added on 20240119 by edrulrd
+  if [ "$(find /etc/sudoers.d -type f -print 2>/dev/null | wc -l)" -gt 0 ] # check for files in /etc/sudoers # modified on 20240322 by edrulrd
+  then
+     find /etc/sudoers.d -type f -print | while read -r FILE # modified on 20240322 by edrulrd
+     do
+        if [ "$(grep -cvE '^#|^ *$' "${FILE}")" -gt 0 ] # only display message if contents # modified on 20240322 by edrulrd
+        then
+           exec_command "grep -vE '^#|^ *$' ${FILE}" "${FILE}" # get rid of blank lines # modified on 20240322 by edrulrd
+        fi
+     done
+  fi
+
   dec_heading_level
 
 fi # terminates CFG_SYSTEM wrapper
@@ -838,31 +889,34 @@ inc_heading_level
 # for user in $(getent passwd|cut -f1 -d:); do echo "### Crontabs for ${user} ####"; crontab -u ${user} -l; done
 # changed 20140212 by Ralph Roth
 
-  ls ${user}cron/* > /dev/null 2>&1
-  if [ $? -eq 0 ]
+  if [ -n "${usercron}" ] && [ "$(find "${usercron}" -type f -print 2>/dev/null | wc -l)" -gt 0 ] # confirm $usercron is set # modified on 20240322 by edrulrd
   then
-	  _echo  "\n\n<B>Crontab files:</B>" >> ${HTML_OUTFILE}
-	  for FILE in ${user}cron/*
-	  do
-		  exec_command "cat ${FILE} | grep -v ^#" "For user `basename ${FILE}`"
-	  done
+     exec_command "" "Crontab files:" # fixed title # modified on 20240119 by edrulrd
+     find "${usercron}" -type f -print | while read -r FILE # modified on 20240322 by edrulrd
+     do
+        if [ "$(grep -cvE '^#|^ *$' "${FILE}")" -gt 0 ] # only display message if contents # modified on 20240322 by edrulrd
+        then
+           exec_command "grep -vE '^#|^ *$' ${FILE}" "${FILE}" # get rid of blank lines # modified on 20240322 by edrulrd
+        fi
+     done
   else
-	  echo "No crontab files for user.<br>" >> ${HTML_OUTFILE}
+      AddText 'No user crontab files' # modified on 20240322 by edrulrd
   fi
 
   ##
   ## we do also a listing of utility cron files
   ## under /etc/cron.d 30Jan2003 it233 FRU
-  ls /etc/cron.d/* > /dev/null 2>&1
-  if [ $? -eq 0 ]
+  if [ "$(find /etc/cron.d -type f -print 2>/dev/null | wc -l)" -gt 0 ] # check for files in /etc/sudoers # modified on 20240322 by edrulrd
   then
-	  _echo "\n\n<br><B>/etc/cron.d files:</B>" >> ${HTML_OUTFILE}
-	  for FILE in /etc/cron.d/*
-	  do
-		  exec_command "cat ${FILE} | grep -v ^#" "For utility `basename ${FILE}`"
-	  done
+     find /etc/cron.d -type f -print | while read -r FILE # modified on 20240322 by edrulrd
+	 do
+        if [ "$(grep -cvE '^#|^ *$' "${FILE}")" -gt 0 ] # only display message if contents # modified on 20240322 by edrulrd
+        then
+          exec_command "grep -vE '^#|^ *$' ${FILE}" "For utility: ${FILE}" # modified on 20240119 by edrulrd
+        fi
+	 done
   else
-	  echo "No /etc/cron.d files for utlities." >> ${HTML_OUTFILE}
+      exec_command "echo 'No /etc/cron.d files for utilities'" "/etc/cron.d"  # modified on 20240119 by edrulrd
   fi
 
   if [ -f /etc/crontab ] ; then
@@ -877,9 +931,9 @@ inc_heading_level
   for FILE in at.allow at.deny; do
 	  if [ -r ${atconfigpath}/${FILE} ]
 	  then
-	      exec_command "cat ${atconfigpath}/${FILE} " "${atconfigpath}/${FILE}"
+	      exec_command "cat ${atconfigpath}/${FILE} | grep -vE '^#|^ *$'" "${atconfigpath}/${FILE}" # modified on 20240119 by edrulrd
 	  else
-	      exec_command "echo ${atconfigpath}/${FILE}" "No ${atconfigpath}/${FILE}"
+	      exec_command " " "${atconfigpath}/${FILE}" # modified on 20240119 by edrulrd
 	  fi
   done
 
@@ -904,32 +958,32 @@ then # else skip to next paragraph
 paragraph "Hardware"
 inc_heading_level
 
-  RAM=`awk -F': *' '/MemTotal/ {print $2}' /proc/meminfo`
+  RAM=$(awk -F': *' '/MemTotal/ {print $2}' /proc/meminfo)
   # RAM=`cat /proc/meminfo | grep MemTotal | awk -F\: '{print $2}' | awk -F\  '{print $1 " " $2}'`
   exec_command "echo ${RAM}" "Physical Memory"
 
   ## Murray Barton, 14/4/2010
-  DMIDECODE=`which dmidecode`; if [ -n "${DMIDECODE}" ] && [ -x ${DMIDECODE} ] ; then exec_command "${DMIDECODE} 2> /dev/null" "DMI Table Decoder"; fi
+  DMIDECODE=$(which dmidecode 2>/dev/null); if [ -n "${DMIDECODE}" ] && [ -x "${DMIDECODE}" ] ; then exec_command "${DMIDECODE} 2> /dev/null" "DMI Table Decoder"; fi # added /dev/null # modified on 20240202 by edrulrd
 
   ### Begin changes by Dusan.Baljevic@ieee.org ### 13.05.2014
 
-  BIOSDECODE=$(which biosdecode)
-  if [ -n "${BIOSDECODE}" ] && [ -x ${BIOSDECODE} ] ; then
+  BIOSDECODE=$(which biosdecode 2>/dev/null) # added /dev/null # modified on 20240202 by edrulrd
+  if [ -n "${BIOSDECODE}" ] && [ -x "${BIOSDECODE}" ] ; then
     exec_command "${BIOSDECODE}" "biosdecode"
   fi
 
   ### End changes by Dusan.Baljevic@ieee.org ### 13.05.2014 ### needs cleanup, e.g. 2> /dev/null - 06.04.2015, rr
 
-  LSCPU=`which lscpu 2>/dev/null`; if [ -n "${LSCPU}" ] && [ -x ${LSCPU} ] ; then exec_command "${LSCPU}" "CPU architecture"; fi # see issue #52
+  LSCPU=$(which lscpu 2>/dev/null); if [ -n "${LSCPU}" ] && [ -x "${LSCPU}" ] ; then exec_command "${LSCPU}" "CPU architecture"; fi # see issue #52
   ## see issue #82, rr, 20150527-rr, see also issue #129, this a workaround! 23.03.2018-rr
-  HWINFO=`which hwinfo 2>/dev/null`; if [ -n "${HWINFO}" ] && [ -x ${HWINFO} ] ; then exec_command "timeout 3m ${HWINFO} --short 2> /dev/null" "Hardware List (hwinfo)"; fi
-  LSHW=`which lshw 2>/dev/null`; if [ -n "${LSHW}" ] && [ -x ${LSHW} ] ; then exec_command "${LSHW}" "Hardware List (lshw)"; fi ##  13.12.2004, 15:53 modified by Ralph Roth
-  LSDEV=`which lsdev 2>/dev/null`; if [ -n "${LSDEV}" ] && [ -x ${LSDEV} ] ; then exec_command "${LSDEV}" "Hardware List (lsdev)"; fi
-  LSHAL=`which lshal 2>/dev/null`; if [ -n "${LSHAL}" ] && [ -x ${LSHAL} ] ; then exec_command "${LSHAL}" "List of Devices (lshal)"; fi
-  LSUSB=`which lsusb 2>/dev/null`; if [ -n "${LSUSB}" ] && [ -x ${LSUSB} ] ; then exec_command "${LSUSB}" "List of USB devices"; fi ## SUSE? #  12.11.2004, 15:04 modified by Ralph Roth
+  HWINFO=$(which hwinfo 2>/dev/null); if [ -n "${HWINFO}" ] && [ -x "${HWINFO}" ] ; then exec_command "timeout 3m ${HWINFO} --short 2> /dev/null" "Hardware List (hwinfo)"; fi
+  LSHW=$(which lshw 2>/dev/null); if [ -n "${LSHW}" ] && [ -x "${LSHW}" ] ; then exec_command "${LSHW}" "Hardware List (lshw)"; fi ##  13.12.2004, 15:53 modified by Ralph Roth
+  LSDEV=$(which lsdev 2>/dev/null); if [ -n "${LSDEV}" ] && [ -x "${LSDEV}" ] ; then exec_command "${LSDEV}" "Hardware List (lsdev)"; fi
+  LSHAL=$(which lshal 2>/dev/null); if [ -n "${LSHAL}" ] && [ -x "${LSHAL}" ] ; then exec_command "${LSHAL}" "List of Devices (lshal)"; fi
+  LSUSB=$(which lsusb 2>/dev/null); if [ -n "${LSUSB}" ] && [ -x "${LSUSB}" ] ; then exec_command "${LSUSB}" "List of USB devices"; fi ## SUSE? #  12.11.2004, 15:04 modified by Ralph Roth
 
-  LSPCI=`which lspci 2>/dev/null`
-  if [ -n "${LSPCI}" ] && [ -x ${LSPCI} ] ; then
+  LSPCI=$(which lspci 2>/dev/null)
+  if [ -n "${LSPCI}" ] && [ -x "${LSPCI}" ] ; then
     exec_command "${LSPCI} -v" "PCI devices"
   else
     if [ -f /proc/pci ] ; then
@@ -937,7 +991,7 @@ inc_heading_level
     fi
   fi
 
-  PCMCIA=`grep pcmcia /proc/devices | cut -d" " -f2`
+  PCMCIA=$(grep pcmcia /proc/devices | cut -d" " -f2)
   if [ "${PCMCIA}" = "pcmcia"  ] ; then
     if [ -x /sbin/cardctl ] ; then
       exec_command "/sbin/cardctl status;/sbin/cardctl config;/sbin/cardctl ident" "PCMCIA"
@@ -952,20 +1006,15 @@ inc_heading_level
   exec_command "cat /proc/interrupts" "Interrupts"
   if [ -f /proc/scsi/scsi ] ;then
     exec_command "find /proc/scsi" "SCSI Components" #  22.11.2004, 16:08 modified by Ralph.Roth
-    exec_command "cat /proc/scsi/scsi" "SCSI Devices"
   fi
 
   if  [ -x /usr/bin/lsscsi ]
   then
-  	# Debian 6.06 # 24.01.2013, doesn't have -p option yet!
-  	#        -p, --protection        Output additional data integrity (protection) information.
-	exec_command "/usr/bin/lsscsi -lv" "SCSI Devices (long, details)"  ## rr, 16. March 2011
-	exec_command "/usr/bin/lsscsi -s" "SCSI Devices (size)"  ## rr, 16. March 2011, 27 May 2015
-  fi
-
-  if [ -x "${FDISKCMD}" -a -x "${GREPCMD}" -a -x "${SEDCMD}" -a -x "${AWKCMD}" -a -x "${SMARTCTL}" ]
-  then
-      exec_command DoSmartInfo "SMART disk drive features and information"
+    # Debian 6.06 # 24.01.2013, doesn't have -p option yet!
+    #        -p, --protection        Output additional data integrity (protection) information. # -p option is available at least in Debian 12 (bookworm), but not (yet) implemented here # modified on 20240119 by edrulrd
+    exec_command "cat /proc/scsi/scsi 2>/dev/null || /usr/bin/lsscsi -c" "SCSI Devices" # moved from above.  lsscsi -c provides similar output to /proc/scsi/scsi # modified on 20240119 by edrulrd
+    exec_command "/usr/bin/lsscsi -lv 2>/dev/null " "SCSI Devices (long, details)"  ## rr, 16. March 2011 # don't flag it if there are no nvme devices # modified on 20240119 by edrulrd
+    exec_command "/usr/bin/lsscsi -s" "SCSI Devices (size)"  ## rr, 16. March 2011, 27 May 2015
   fi
 
   ## rar, 13.02.2004
@@ -974,6 +1023,48 @@ inc_heading_level
 
   ## Added 15.05.2006 (09:30) by Peter Lindblom, HP, STCC EMEA
   [ -x /usr/sbin/lssg ] && exec_command "/usr/sbin/lssg" "Generic SCSI Devices"
+
+  if [ -x "${FDISKCMD}" ] && [ -x "${GREPCMD}" ] && [ -x "${SEDCMD}" ] && [ -x "${AWKCMD}" ] && [ -x "${SMARTCTL}" ]
+  then
+    exec_command DoSmartInfo "SMART disk drive features and information"
+
+    # Moved disk info section from below to here # modified on 20240119 by edrulrd
+    # get IDE and/or ATA Disk information # modified on 20240119 by edrulrd
+    HDPARM=$(which hdparm 2>/dev/null) # modified in case hdparm not installed, on 20201004 by edrulrd
+    # if hdparm is installed (DEBIAN 4.0)
+    # -i   display drive identification
+    # -I   detailed/current information directly from drive
+
+    #  -i   display drive identification (SUSE 10u1)
+    #  -I   detailed/current information directly from drive
+    #  --Istdin  reads identify data from stdin as ASCII hex
+    #  --Istdout writes identify data to stdout as ASCII hex
+
+    # Sep 23 19:12:47 hp02 root: Start of cfg2html-linux version 1.63-2009-08-27
+    # Sep 23 19:13:03 hp02 kernel: hda: drive_cmd: status=0x51 { DriveReady SeekComplete Error }
+    # Sep 23 19:13:03 hp02 kernel: hda: drive_cmd: error=0x04Aborted Command
+    # Sep 23 19:13:18 hp02 root: End of cfg2html-linux version 1.63-2009-08-27
+
+    # Anpassung auf hdparm -i wegen Fehler im Syslog (siehe oben, cfg1.63)
+    # Ingo Metzler 23.09.2009
+
+    if [ "${HDPARM}" ]  && [ -x "${HDPARM}" ]; then # added on 20240119 by edrulrd
+      PHYS_DRIVES=$( "${SMARTCTL}" --scan | "${AWKCMD}" '{print $1}') # only use drives smartctl knows about # modified on 20240119 by edrulrd
+
+      exec_command "for drive in ${PHYS_DRIVES}; do ${HDPARM} -i \${drive}; done" "Disk Identification Information" # added on 20240119 by edrulrd
+
+
+      for drive in ${PHYS_DRIVES} # added on 20240119 by edrulrd
+      do
+          exec_command "${HDPARM} -t -T ${drive}" "Transfer Speed for ${drive}" # added on 20240119 by edrulrd
+      done
+    fi
+  fi
+
+  # Moved cdrom info from below to here # modified on 20240119 by edrulrd
+  if [ -e /proc/sys/dev/cdrom/info ] ; then
+    exec_command "cat /proc/sys/dev/cdrom/info" "CDROM Drive"
+  fi
 
   ## rar, 13.02.2004
   ## Added 15.05.2006 (09:30) by Peter Lindblom, HP, STCC EMEA, Added the echo between the command to get a new line and move it down below lssg and lssd.
@@ -993,7 +1084,7 @@ inc_heading_level
   then
     for file in /proc/scsi/qla2200/*
       do
-        mcat ${file} >>/tmp/fibrehba.txt
+        mcat "${file}" >>/tmp/fibrehba.txt
       done
   fi
 
@@ -1003,7 +1094,7 @@ inc_heading_level
   then
       for file in /proc/scsi/qla300/*
       do
-        mcat ${file} >>/tmp/fibrehba.txt
+        mcat "${file}" >>/tmp/fibrehba.txt
       done
   fi
 
@@ -1013,7 +1104,7 @@ inc_heading_level
   then
       for file in /proc/scsi/qla2xxx/*
       do
-        mcat ${file} >>/tmp/fibrehba.txt
+        mcat "${file}" >>/tmp/fibrehba.txt
       done
   fi
 
@@ -1024,7 +1115,7 @@ inc_heading_level
   then
       for file in /proc/scsi/lpfc/*
       do
-        mcat ${file} >>/tmp/fibrehba.txt
+        mcat "${file}" >>/tmp/fibrehba.txt
       done
   fi
 
@@ -1034,24 +1125,31 @@ inc_heading_level
     rm /tmp/fibrehba.txt
   fi
 
-  SYSTOOL=`which systool  2>/dev/null`
+  SYSTOOL=$(which systool  2>/dev/null)
   if [ -x "${SYSTOOL}" ]; then # modified on 20201004 by edrulrd
      exec_command "systool -c fc_host -v" "Fibre Channel Host Bus Adapters systool status"
   fi
 
-  SGSCAN=`which sg_scan` 2>/dev/null
+  SGSCAN=$(which sg_scan 2>/dev/null) # added /dev/null # modified on 20240202 by edrulrd
   if [ -x "${SGSCAN}" ]; then # modified on 20201009 by edrulrd
      exec_command "sg_scan -i" "Fibre Channel Host Bus Adapters sg_scan SCSI inquiry"
   fi
 
-  SGMAP=`which sg_map 2>/dev/null`
-  if [ -x "${SMAP}" ]; then # modified on 20201009 by edrulrd
+  SGMAP=$(which sg_map 2>/dev/null)
+  if [ -x "${SGMAP}" ]; then # modified on 20201009 by edrulrd # fixed variable name bug # modified on 20240119 by edrulrd
      exec_command "sg_map -x" "Fibre Channel Host Bus Adapters sg_map status"
   fi
 
-  exec_command "ls -la /dev/disk/by-id" "Disk devices by-id"
-  exec_command "ls -ld /sys/block/sd*" "Block disk devices"
-  exec_command "ls -v -1c /dev/sd*[!0-9] | xargs -I {} sh -c 'echo -n "{}:" ; /lib/udev/scsi_id --whitelisted --device={}'" "Fibre Channel Host Bus Adapters scsi_id"
+  [ -d /dev/disk/by-id ] && exec_command "ls -l /dev/disk/by-id" "Disk devices by-id" # check if exists first # modified on 20240303 by edrulrd
+  if ls -ld /sys/block/sd* 2>/dev/null 1>&2 # check to see if we have sd* block devices # added on 20240202 by edrulrd
+  then
+    exec_command "ls -ld /sys/block/sd*" "Block disk devices"
+    if [ "$(which /lib/udev/scsi_id 2>/dev/null)" ]; then # we have this library installed # added on 20240202 by edrulrd
+      exec_command "ls -v -1c /dev/sd*[!0-9] | xargs -I {} sh -c 'echo -n "{}:" ; /lib/udev/scsi_id --whitelisted --device={}'" "Fibre Channel Host Bus Adapters scsi_id"
+    fi
+  else
+    exec_command "ls -ld /sys/block/* | grep -v virtual" "Non-virtual Block devices" # if no /sd* devices, list all non-virtual ones # modified on 20240202 by edrulrd
+  fi
 
   #### End of Fibre HBA info.
 
@@ -1094,71 +1192,14 @@ inc_heading_level
 
   # get serial information
   SETSERIAL=$(which setserial 2>/dev/null) # modified in case setserial not installed, on 20201110 by edrulrd
-  if [ -n "${SETSERIAL}" ] && [ -x ${SETSERIAL} ]; then
+  if [ -n "${SETSERIAL}" ] && [ -x "${SETSERIAL}" ]; then
     exec_command "${SETSERIAL} -a /dev/ttyS0" "Serial ttyS0"
     exec_command "${SETSERIAL} -a /dev/ttyS1" "Serial ttyS1"
   fi
 
-  # get IDE Disk information
-  HDPARM=$(which hdparm 2>/dev/null) # modified in case hdparm not installed, on 20201004 by edrulrd
-  # if hdparm is installed (DEBIAN 4.0)
-  # -i   display drive identification
-  # -I   detailed/current information directly from drive
+  # moved disk information section to up above # modified on 20240119 by edrulrd
 
-  #  -i   display drive identification (SUSE 10u1)
-  #  -I   detailed/current information directly from drive
-  #  --Istdin  reads identify data from stdin as ASCII hex
-  #  --Istdout writes identify data to stdout as ASCII hex
-
-  # Sep 23 19:12:47 hp02 root: Start of cfg2html-linux version 1.63-2009-08-27
-  # Sep 23 19:13:03 hp02 kernel: hda: drive_cmd: status=0x51 { DriveReady SeekComplete Error }
-  # Sep 23 19:13:03 hp02 kernel: hda: drive_cmd: error=0x04Aborted Command
-  # Sep 23 19:13:18 hp02 root: End of cfg2html-linux version 1.63-2009-08-27
-
-  # Anpassung auf hdparm -i wegen Fehler im Syslog (siehe oben, cfg1.63)
-  # Ingo Metzler 23.09.2009
-
-  if [ ${HDPARM} ]  && [ -x ${HDPARM} ]; then
-    exec_command "\
-      if [ -e /proc/ide/hda ] ; then _echo  -n \"read from drive\"; ${HDPARM} -i /dev/hda;fi;\
-      if [ -e /proc/ide/hdb ] ; then echo; _echo -n \"read from drive\"; ${HDPARM} -i /dev/hdb;fi;\
-      if [ -e /proc/ide/hdc ] ; then echo; _echo -n \"read from drive\"; ${HDPARM} -i /dev/hdc;fi;\
-      if [ -e /proc/ide/hdd ] ; then echo; _echo -n \"read from drive\"; ${HDPARM} -i /dev/hdd;fi;"\
-    "IDE Disks"
-
-    if [ -e /proc/ide/hda ] ; then
-      if grep disk /proc/ide/hda/media > /dev/null ;then
-        exec_command "${HDPARM} -t -T /dev/hda" "Transfer Speed"
-      fi
-    fi
-    if [ -e /proc/ide/hdb ] ; then
-      if grep disk /proc/ide/hdb/media > /dev/null ;then
-        exec_command "${HDPARM} -t -T /dev/hdb" "Transfer Speed"
-      fi
-    fi
-    if [ -e /proc/ide/hdc ] ; then
-      if grep disk /proc/ide/hdc/media > /dev/null ;then
-        exec_command "${HDPARM} -t -T /dev/hdc" "Transfer Speed"
-      fi
-    fi
-    if [ -e /proc/ide/hdd ] ; then
-      if grep disk /proc/ide/hdd/media > /dev/null ;then
-        exec_command "${HDPARM} -t -T /dev/hdd" "Transfer Speed"
-      fi
-    fi
-  else
-  # if hdparm not available
-    exec_command "\
-      if [ -e /proc/ide/hda/model ] ; then _echo -n \"hda: \";cat /proc/ide/hda/model ;fi;\
-      if [ -e /proc/ide/hdb/model ] ; then _echo -n \"hdb: \";cat /proc/ide/hdb/model ;fi;\
-      if [ -e /proc/ide/hdc/model ] ; then _echo -n \"hdc: \";cat /proc/ide/hdc/model ;fi;\
-      if [ -e /proc/ide/hdd/model ] ; then _echo -n \"hdd: \";cat /proc/ide/hdd/model ;fi;"\
-  "IDE Disks"
-  fi
-
-  if [ -e /proc/sys/dev/cdrom/info ] ; then
-    exec_command "cat /proc/sys/dev/cdrom/info" "CDROM Drive"
-  fi
+  # Moved cdrom section to up above # modified on 20240119 by edrulrd
 
   if [ -e /proc/ide/piix ] ; then
     exec_command "cat /proc/ide/piix" "IDE Chipset info"
@@ -1167,15 +1208,15 @@ inc_heading_level
   # Test HW Health
   # MiMe
   if [ -x /usr/bin/sensors ] ; then
-    if [ -e /proc/sys/dev/sensors/chips ] ; then
-      exec_command "/usr/bin/sensors" "Sensors"
-    fi
+    # if [ -e /proc/sys/dev/sensors/chips ] ; then # commented out as cmd exists, but proc file doesn't # modified on 20240119 by edrulrd
+      exec_command "/usr/bin/sensors" "Sensor Information" # modified on 20240119 by edrulrd
+    # fi # commented out on 20240119 by edrulrd
   fi
 
   if [ -x /usr/sbin/xpinfo ]
   then
     XPINFOFILE="${OUTDIR}/$(hostname)_xpinfo.csv"
-    /usr/sbin/xpinfo -d";" | grep -v "Scanning" > ${XPINFOFILE}
+    /usr/sbin/xpinfo -d";" | grep -v "Scanning" > "${XPINFOFILE}"
 
     AddText "The XP-Info configuration was additionally dumped into the file <b>${XPINFOFILE}</b> for further usage"
 
@@ -1221,10 +1262,12 @@ then # else skip to next paragraph
   # Debian
   if [ "${DEBIAN}" = "yes" ] ; then
     dpkg --get-selections | awk '!/deinstall/ {print $1}' > /tmp/cfg2html-debian.$$
-    exec_command "column /tmp/cfg2html-debian.$$" "Packages installed"
+    exec_command "column -c ${CFG_TEXTWIDTH} /tmp/cfg2html-debian.$$" "Packages installed" # specify a maximum width for our columns # modified on 20240119 by edrulrd
     rm -f /tmp/cfg2html-debian.$$
     AddText "Hint: to reinstall this list use:"
-    AddText "awk '{print \$1\"\\n\"\$2}' this_list |  dpkg --set-selections"
+    AddText "awk '{print \$1\" install\"}' this_list | dpkg --set-selections" # modified on 20240119 by edrulrd
+    # show packages that are marked as being manually installed # added on 20240303 by edrulrd
+    which apt-mark 2>/dev/null 1>&2 && exec_command "apt-mark showmanual | column -c ${CFG_TEXTWIDTH}" "Manually Installed Packages" # added on 20240303 by edrulrd
     exec_command "dpkg -C" "Misconfigured Packages"
 #   # { changed/added 25.11.2003 (14:29) by Ralph Roth }
     if [ -x /usr/bin/deborphan ] ; then
@@ -1233,8 +1276,14 @@ then # else skip to next paragraph
     fi
     exec_command "dpkg -l" "Detailed list of installed Packages"
     AddText "$(dpkg --version|grep program)"
-    exec_command "grep -vE '^#|^ *$' /etc/apt/sources.list" "Installed from"
-    [ -x /usr/bin/dpigs ] && exec_command "/usr/bin/dpigs" "Largest installed packages"
+    exec_command "grep -vE '^#|^ *$' /etc/apt/sources.list" "Package Source repositories" # modified on 20240119 by edrulrd
+    [ -x /usr/bin/dpigs ] && exec_command "/usr/bin/dpigs -H" "Largest installed packages" # added -H # modified on 20240119 by edrulrd
+    if [ -x /usr/bin/debconf-get-selections ]; then
+      AddText "Debian Settings"
+      AddText "Hint: to reinstall this list use:"
+      AddText "cat this_list | debconf-set-selections -v "
+      exec_command "/usr/bin/debconf-get-selections" "Debian Package Configuration Values"
+    fi
   fi
   # end Debian
 
@@ -1272,12 +1321,14 @@ then # else skip to next paragraph
 
   # REDHAT
   if [ "${REDHAT}" = "yes" ] || [ "${MANDRAKE}" = "yes" ] ; then
-    exec_command "rpm -qia | grep -E '^(Name|Group)( )+:'" "Packages installed" ## Chris Gardner - 24.01.2012
-    exec_command "rpm -qa | sort -d -f" "Packages installed (sorted)"       #*#   Alexander De Bernardi //09.03.2010 12:31/rr
-    exec_command "rpm -qa --queryformat '%{NAME}\n' | sort -d -f" "Packages installed, Name only (sorted)"      #*#   Alexander De Bernardi //21.04.2010/rr
-    exec_command "rpm -qa --queryformat '%-50{NAME} %{VENDOR}\n' | sort -d -f" "Packages installed, Name and Vendor only (sorted)"      #*#   Alexander De Bernardi //21.04.2010/rr
-    exec_command "rpm --querytags" "RPM Query Tags"     #*#   Alexander De Bernardi //21.04.2010/rr
-    if [ -x /usr/bin/yum ] ; then
+    exec_command "rpm -qia | grep -E '^(Name|Group)( )+:' | column -c ${CFG_TEXTWIDTH}" "Packages installed" ## Chris Gardner - 24.01.2012 # added column option # modified on 20240202 by edrulrd
+    exec_command "rpm -qa | sort -d -f | column -c ${CFG_TEXTWIDTH}" "Packages installed (sorted)"       #*#   Alexander De Bernardi //09.03.2010 12:31/rr # added column option # modified on 20240202 by edrulrd
+    exec_command "rpm -qa --queryformat '%{NAME}\n' | sort -d -f | column -c ${CFG_TEXTWIDTH}" "Packages installed, Name only (sorted)"      #*#   Alexander De Bernardi //21.04.2010/rr # added column option # modified on 20240202 by edrulrd
+    exec_command "rpm -qa --queryformat '%-50{NAME} %{VENDOR}\n' | sort -d -f | column -c ${CFG_TEXTWIDTH}" "Packages installed, Name and Vendor only (sorted)"      #*#   Alexander De Bernardi //21.04.2010/rr # added column option # modified on 20240202 by edrulrd
+    exec_command "rpm --querytags | column -c ${CFG_TEXTWIDTH}" "RPM Query Tags"     #*#   Alexander De Bernardi //21.04.2010/rr # added column option # modified on 20240202 by edrulrd
+    if [ -x /usr/bin/dnf ] ; then
+        exec_command "dnf history" "DNF: Last actions performed"
+    elif [ -x /usr/bin/yum ] ; then
         exec_command "yum history" "YUM: Last actions performed"
     fi  # yum
   fi
@@ -1311,7 +1362,7 @@ then # else skip to next paragraph
   ## AppArmor
   if [ -x /usr/sbin/aa-status ]
   then
-   exec_command "/usr/sbin/aa-status --verbose" "AppArmor LSM for Name-based Mandatory Access Control/Profiles"
+    exec_command "/usr/sbin/aa-status --verbose" "AppArmor LSM for Name-based Mandatory Access Control/Profiles"
   fi
 
   #### programming stuff ##### plugin for cfg2html/linux/hpux #  22.11.2005, 16:03 modified by Ralph Roth
@@ -1334,22 +1385,33 @@ inc_heading_level
     exec_command "my_df" "All Filesystems and Usage"
     if [ -x /sbin/dumpe2fs ]
     then
-      exec_command "display_ext_fs_param" "Filesystems Parameters"	# needs fixing, 20140929 by Ralph Roth
+      exec_command "display_ext_fs_param" "EXT Filesystems Parameters"	# needs fixing, 20140929 by Ralph Roth # modified on 20240202 by edrulrd
     fi
-    exec_command "mount" "Local Mountpoints"
-    exec_command PartitionDump "Disk Partition Layout"        #  30.03.2011, 20:00 modified by Ralph Roth #** rar **#
-    #
-    # 20201008 following code added by edrulrd
+    if [ "$(which xfs_db 2>/dev/null)" ] # added on 20240202 by edrulrd
+    then
+      exec_command "display_xfs_fs_param" "XFS Filesystems Parameters" # added on 20240202 by edrulrd
+    fi
+    if [ "$(which btrfs 2>/dev/null)" ] # added on 20240202 by edrulrd
+    then
+      exec_command "display_btrfs_fs_param" "BTRFS Filesystems Parameters" # added on 20240202 by edrulrd
+    fi
+    exec_command "mount | column -t -c ${CFG_TEXTWIDTH}" "Mount points" # more readable in table format # modified on 20240119 by edrulrd
+    exec_command PartitionDump "Disk Partition Layout (showing sizes)"        #  30.03.2011, 20:00 modified by Ralph Roth #** rar ** # modified title # modified on 20240119 by edrulrd
+
+    # moved the partition map showing sectors from below to here  # modified on 20240119 by edrulrd
+    # for LVM using sed
+    [ -x /sbin/fdisk ] && exec_command "/sbin/fdisk -l|sed 's/8e \ Unknown/8e \ LVM/g'" "Disk Partitions (showing sectors)" # confirm fdisk is available # modified on 20240303 by edrulrd
+
     # We want to save the partition tables for each of the disks so we can restore them if they get corrupted.
     # With the greatly increased sizes of disks nowadays, on systems with older versions of sfdisk, the data is not saved properly.
     # So, where we can, we'll save the partition tables with sfdisk, and where we can't we'll use sgdisk
     do_sgdisk=no
     do_sfdisk=no
-    if [ -x "$(which sfdisk)" ] ; then
+    if [ -x "$(which sfdisk 2>/dev/null)" ]  && sfdisk -v 2>/dev/null 1>&2 ; then # confirm -v option exists # modified on 20240322 by edrulrd
       vl="$(sfdisk -v | awk '{print $NF}'|sed 's/\./ /g')" # get version and level of sfdisk command
-      v="$(echo ${vl} | awk '{print $1}')" # get version
-      l="$(echo ${vl} | awk '{print $2}')" # level
-      if [ ${v} -ge 3 ] || [ ${v} -eq 2 -a ${l} -ge 26 ] ; then
+      v="$(echo "${vl}" | awk '{print $1}')" # get version
+      l="$(echo "${vl}" | awk '{print $2}')" # level
+      if [ "${v}" -ge 3 ] || [ "${v}" -eq 2 ] && [ "${l}" -ge 26 ] ; then
         do_sfdisk=yes # we can use sfdisk if the version is 2.26 or higher
       else
         do_sgdisk=yes # otherwise, we can use sgdisk if it's available
@@ -1358,51 +1420,79 @@ inc_heading_level
       do_sgdisk=yes  # do sgdisk if sfdisk is not available but sgdisk is
     fi
 
-    if [ -x "$(which lsblk)" ] ; then
-      for HardDisk in $(lsblk -p | grep "^/" | grep disk | awk '{print $1}') # get the harddrives only eg. /dev/sda, not lv's etc.
-      do
-        if [ -x "$(which sgdisk)" -a "${do_sgdisk}" = "yes" ] ; then
-          sgdisk --backup="${OUTDIR}/${BASEFILE}.partitions.save.$(basename ${HardDisk})" ${HardDisk}
-          exec_command "ls -l ${OUTDIR}/${BASEFILE}.partitions.save.$(basename ${HardDisk})" "Disk Partitions to restore from"
-          AddText "WARNING: use at your own risk!  To restore your partitions use the saved file: ${OUTDIR}/${BASEFILE}.partitions.save.$(basename ${HardDisk}). Read the man page for sgdisk for usage. (Hint: sgdisk --load-backup=${OUTDIR}/${BASEFILE}.partitions.save.$(basename ${HardDisk}) ${HardDisk}"
+    if [ -x "$(which lsblk 2>/dev/null)" ] ; then # use lsblk to get our disks, which might get us a few extras # modified on 20240322 by edrulrd
+# merge conflict, resolved 24.04.24 by Ralph
+      Diskdevs=$(lsblk -p 2>/dev/null | grep "^/" | grep disk | "${AWKCMD}" '{print $1}') # get the block devices, but only those marked as disk eg. /dev/sda, not lv's etc. # del errors if -p not available # modified on 20240411 by edrulrd
+    else
+      if [ -x "$(which "${SMARTCTL}" 2>/dev/null)" ] ; then # if lsblk not available, use smartctl instead to get only disk devices # modified on 20240322 by edrulrd
+        Diskdevs=$("${SMARTCTL}" --scan | "${AWKCMD}" '{print $1}') # only use drives smartctl knows about # modified on 20240322 by edrulrd
+      fi
+    fi
+    echo "${Diskdevs}" | while read -r HardDisk
+    do
+      if [ -n "$HardDisk" ] ; then
+        if [ -x "$(which sgdisk 2>/dev/null)" ] && [ "${do_sgdisk}" = "yes" ] ; then # added /dev/null # modified on 20240322 by edrulrd
+          sgdisk --backup="${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}")" "${HardDisk}" && # don't proceed if sgdisk fails # modified on 20240119 by edrulrd
+          if [ -s "${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}")" ] # ignore empty files # added on 20240119 by edrulrd
+          then
+            exec_command "ls -l ${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}")" "SGDisk Partition specification for ${HardDisk}" # modified on 20240119 by edrulrd
+            AddText "WARNING: use at your own risk!  To restore your partitions use the saved file: ${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}"). Read the man page for sgdisk for usage. (Hint: sgdisk --load-backup=${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}") ${HardDisk}"
+          fi # added on 20240119 by edrulrd
+          [ ! -s "${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}")" ] && rm -f "${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}")" # remove empty file # added on 20240322 by edrulrd
         else
           if [ "${do_sfdisk}" = "yes" ] ; then
-            sfdisk -d ${HardDisk} > ${OUTDIR}/${BASEFILE}.partitions.save.$(basename ${HardDisk})
-            exec_command "cat ${OUTDIR}/${BASEFILE}.partitions.save.$(basename ${HardDisk})" "Disk Partitions to restore from"
-            AddText "WARNING: use at your own risk!  To restore your partitions use the saved file: ${OUTDIR}/${BASEFILE}.partitions.save.$(basename ${HardDisk}). Read the man page for sfdisk for usage. (Hint: sfdisk --force /dev/device < file.save)"
+            sfdisk -d "${HardDisk}" > "${OUTDIR}"/"${BASEFILE}".partitions.save."$(basename "${HardDisk}")" && # don't proceed if sfdisk fails # modified on 20240119 by edrulrd
+            if [ -s "${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}")" ] # ignore empty files # added on 20240119 by edrulrd
+            then
+              exec_command "cat ${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}")" "SFDisk Partition specification for ${HardDisk}" # modified on 20240119 by edrulrd
+              AddText "WARNING: use at your own risk!  To restore your partitions use the saved file: ${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}"). Read the man page for sfdisk for usage. (Hint: sfdisk --force /dev/device < file.save)"
+            fi
+            [ ! -s "${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}")" ] && rm -f "${OUTDIR}/${BASEFILE}.partitions.save.$(basename "${HardDisk}")" # remove empty file # added on 20240322 by edrulrd
           else
-             AddText "Warning: sfdisk version is too old and sgdisk is not available"
+             [ -x "$(which sfdisk 2>/dev/null)" ] && echo "${HardDisk}: Warning: sfdisk version is too old and sgdisk is not available" >> "${ERROR_LOG}" # check if sfdisk exists # modified on 20240303 by edrulrd
           fi
         fi
-      done
-    fi # end of code added by edrulrd
+      fi
+    done
 
     #*#
     #*# Alexander De Bernard 20100310
     #*#
 
-    MD_FILE="/etc/mdadm.conf"
+    MD_FILE_LIST="/etc/mdadm.conf /etc/mdadm/mdadm.conf" # mdadm.conf found at alternative locations # modified on 20240119 by edrulrd
     MD_CMD="/sbin/mdadm"
 
-    if [ -f ${MD_FILE} ]
-    then
-	exec_command "grep -vE '^#|^ *$' ${MD_FILE}" "MD Configuration File"
-	if [ -x ${MD_CMD} ]
-	then
-	    MD_DEV=$(grep "ARRAY" ${MD_FILE} | awk '{print $2;}')
-	    #         stderr output from "/sbin/mdadm --detail ":   ## SLES 11
-	    #         mdadm: No devices given.
-	    for d in ${MD_DEV}    # FIXNEEDED: SC2066
-	    do
-        exec_command "${MD_CMD} --detail ${d}" "MD Device Setup of ${d}"
-	    done
-	else
-	    AddText "${MD_FILE} exists but no ${MD_CMD} command"
-	fi
-    fi
+    for MD_FILE in ${MD_FILE_LIST} # check each of the files for software raid config # modified on 20240119 by edrulrd
+    do
+      if [ -f "${MD_FILE}" ]
+      then
+         exec_command "grep -vE '^#|^ *$' ${MD_FILE}" "MD Software RAID Configuration File" # modified title # modified on 20240119 by edrulrd
+         if [ -x ${MD_CMD} ]
+         then
+           MD_DEV=$(grep 'ARRAY' "${MD_FILE}" | awk '{print $2;}')
+           #         stderr output from "/sbin/mdadm --detail ":   ## SLES 11
+           #         mdadm: No devices given.
+           for d in ${MD_DEV}    # FIXNEEDED: SC2066
+           do
+               exec_command "${MD_CMD} --detail ${d}" "MD Device Setup of ${d}"
+           done
+         else
+           AddText "${MD_FILE} exists but no ${MD_CMD} command"
+         fi
+      fi
+    done
 
-    # for LVM using sed
-    exec_command "/sbin/fdisk -l|sed 's/8e \ Unknown/8e \ LVM/g'" "Disk Partitions"
+    # moved the following RAID section from the LVM section # modified on 20240119 by edrulrd
+    # MD Tools, Ralph Roth
+
+    # if [ -r /etc/raidtab ] # Note: /etc/raidtab is not present on some software raid enabled systems - commented out # modified on 20240119 by edrulrd
+    #then
+    [ -r /proc/mdstat ] &&  exec_command "cat /proc/mdstat" "Software RAID: mdstat" # modified on 20240119 by edrulrd
+    [ -r /etc/raidtab ] &&  exec_command "cat /etc/raidtab" "Software RAID: raidtab" # modified on 20240119 by edrulrd
+    [ -r /proc/devices/md ] && exec_command "cat /proc/devices/md" "Software RAID: MD Devices"
+    #fi
+
+    # command showing Partition map showing sectors moved up above # modified on 20240119 by edrulrd
 
     if [ -f /etc/exports ] ; then
 	exec_command "grep -vE '^#|^ *$' /etc/exports" "NFS Filesystems"
@@ -1413,9 +1503,9 @@ inc_heading_level
          ##CHANGED##FIXED## 20150304 by Ralph Roth
 	 exec_command "/usr/sbin/kdumptool dump_config; echo; /usr/sbin/kdumptool find_kernel; echo; /usr/sbin/kdumptool print_target" "Kdump Status (kdumptool)"
     else
-      if [ -x "$(which kdumpctl)" ] ; then # modified on 20201009 by edrulrd
-    	exec_command "kdumpctl status" "Kdump Status"              #  Added by Dusan Baljevic 6/11/2014  (not on SLES11!) // 04.03.2015 Ralph Roth
-    	exec_command "kdumpctl showmem" "Kdump memory allocation"  #  Added by Dusan Baljevic 24/12/2017
+      if [ -x "$(which kdumpctl 2>/dev/null)" ] ; then # modified on 20201009 by edrulrd # added /dev/null # modified on 20240202 by edrulrd
+    	exec_command "kdumpctl status 2>&1" "Kdump Status"              #  Added by Dusan Baljevic 6/11/2014  (not on SLES11!) // 04.03.2015 Ralph Roth # redirect response to stdout # modified on 20240202 by edrulrd
+    	exec_command "kdumpctl showmem 2>&1" "Kdump memory allocation"  #  Added by Dusan Baljevic 24/12/2017 # redirect response to stdout # modified on 20240202 by edrulrd
       fi
     fi # /usr/sbin/kdumptool
     [ -r /proc/diskdump ] && exec_command "cat /proc/diskdump" "Diskdump Status"          #  Added by Dusan Baljevic 6/11/2014, 06.04.2015 Ralph Roth
@@ -1433,7 +1523,7 @@ fi # terminates CFG_FILESYS wrapper
 ###########################################################################
 ## 3/6/08 New: RedHat multipath config  by krtmrrsn@yahoo.com, Marc Korte.
 ## also available at SLES 11 #  07.04.2012, 19:56 modified by Ralph Roth #* rar *#
-if [ ${REDHAT} = "yes" ] && [ -n "$(ps -ef | awk '/\/sbin\/multipathd/ {print $NF}')" ] ; then # modified on 20201005 by edrulrd
+if [ "${REDHAT}" = "yes" ] && [ -n "$(ps -ef | awk '/\/sbin\/multipathd/ {print $NF}')" ] ; then # modified on 20201005 by edrulrd
 
     if [ -x /sbin/multipath ]   #  10.11.2011, 22:50 modified by Ralph Roth #* rar *#
     then
@@ -1463,14 +1553,13 @@ then # else skip to next paragraph
     [ -x /sbin/pvs ] && exec_command "pvs" "Physical Volumes"         # if LVM2 installed       #  07.11.2011, 21:45 modified by Ralph Roth #* rar *#
 
     # WONT WORK WITH HP RAID!
-    LVMFDISK=$(/sbin/fdisk -l | grep "LVM$")
+    [ -x /sbin/fdisk ] && LVMFDISK=$(/sbin/fdisk -l | grep "LVM$") # confirm we have fdisk # modified on 20240303 by edrulrd
 
-    if  [ -n "${LVMFDISK}" -o -r /etc/lvmtab -o -r /etc/lvm/lvm.conf ]   # This expression is constant. Did you forget a $ somewhere?
+    if  [ -n "${LVMFDISK}" ] || [ -r /etc/lvmtab ] || [ -r /etc/lvm/lvm.conf ]
     then # <m>  11.03.2008, 1158 -  Ralph Roth
-        vgdisplay -s > /dev/null 2>&1 #  10032008 modified by Ralph.Roth
+        if [ -n "$(vgdisplay -s 2>/dev/null)" ] ; then #  10032008 modified by Ralph.Roth # let's be sure we have output before saying we're using LVM # modified on 20240303 by edrulrd
         # due to LVM2 (doesn't use /etc/lvmtab anymore), but should be compatible to LVM1; A. Kumpf
-        if [ "$?" = "0" ] ; then
-              AddText "The system file layout is configured using the LVM (Logical Volume Manager)"
+             AddText "The system file layout is configured using the LVM (Logical Volume Manager)"
         # choose between LVM1 and LVM2 because of different syntaxes; A. Kumpf, 21.07.06
              if [ -x "/sbin/lvm" ]; then
                LVM_VER=2
@@ -1481,23 +1570,23 @@ then # else skip to next paragraph
                 case "${LVM_VER}" in
                 "1")
                   exec_command "lvscan --version" "LVM Version"
-                  exec_command "ls -la /dev/*/group" "Volumegroup Device Files"
+                  exec_command "ls -la /dev/*/group" "Volume Group Device Files" # minor title change # modified on 20240119 by edrulrd
                   # { changed/added 29.01.2004 (11:15) by Ralph Roth } - sr by winfried knobloch for Serviceguard
                   exec_command "cat /proc/lvm/global" "LVM global info"
-                  exec_command "vgdisplay -v | awk -F' +' '/PV Name/ {print \$4}'" "Available Physical Groups"
+                  exec_command "vgdisplay -v 2>/dev/null | awk -F' +' '/PV Name/ {print \$4}'" "Available Physical Volumes" # delete any errors we might get # changed Groups to Volumes # modified on 20240119 by edrulrd
                   exec_command "vgdisplay -s | awk -F\\\" '{print \$2}'" "Available Volume Groups"
-                  exec_command "vgdisplay -v | awk -F' +' '/LV Name/ {print \$3}'" "Available Logical Volumes"
+                  exec_command "vgdisplay -v 2>/dev/null | awk -F' +' '/LV Name/ {print \$3}'" "Available Logical Volumes" # delete any errors we might get # modified on 20240202 by edrulrd
                   ;;
                 "2")
-                  exec_command "ls -al /dev/mapper/*" "Volumegroup Device Files"
+                  exec_command "ls -al /dev/mapper/*; [ -x /sbin/vgs ] && echo && /sbin/vgs -o vg_name,lv_name,devices" "Volume Group Device Files" # minor title change # modified on 20240119 by edrulrd
                   exec_command "lvm version" "LVM global info"
                   exec_command "lvm dumpconfig" "LVM dumpconfig"
-                  exec_command "vgdisplay -v | awk -F' +' '/PV Name/ {print \$4}'" "Available Physical Groups"
+                  exec_command "vgdisplay -v 2>/dev/null | awk -F' +' '/PV Name/ {print \$4}'" "Available Physical Volumes" # delete any errors we might get # changed Groups to Volumes # modified on 20240119 by edrulrd
                   exec_command "vgdisplay -s | awk -F\\\" '{print \$2}'" "Available Volume Groups"
-                  exec_command "vgdisplay -v | awk -F' +' '/LV Name/ {print \$4}'" "Available Logical Volumes"
+                  exec_command "vgdisplay -v 2>/dev/null | awk -F' +' '/LV Name/ {print \$4}'" "Available Logical Volumes" # delete any errors we might get # modified on 20240202 by edrulrd
                   # The command vgs -o +tags vgname will display any tags that are set for a volume group. *TODO*
                   # vgcreate --addtag $(uname -n) /dev/vgpkgA /dev/sda1 /dev/sdb1 // vgchange --deltag $(uname -n) vgpkgA  *SGLX*
-                  [ -x /sbin/vgs ] && exec_command "/sbin/vgs -o vg_name,lv_name,devices" "Detailed Volume Groups Report" #  27.10.2011 #* rar *# EHR by Jim Bruce
+                  # [ -x /sbin/vgs ] && exec_command "/sbin/vgs -o vg_name,lv_name,devices" "Detailed Volume Groups Report" #  27.10.2011 #* rar *# EHR by Jim Bruce # combined with /dev/mapper report to put under same heading # modified on 20240119 by edrulrd
                   exec_command "lvs -o +devices" "Logical Volumes"      #  07.11.2011, 21:46 modified by Ralph Roth #* rar *#
                   ;;
                   *)
@@ -1505,7 +1594,7 @@ then # else skip to next paragraph
                   ;;
                   esac
             #
-              exec_command "vgdisplay -v" "Volumegroups"
+              exec_command "vgdisplay -v 2>&1" "Volume Group Details" # display any errors we might get # minor title change # modified on 20240119 by edrulrd
               exec_command PVDisplay "Physical Devices used for LVM"
               AddText "Note: Run vgcfgbackup on a regular basis to backup your volume group layout"
             else
@@ -1516,18 +1605,39 @@ then # else skip to next paragraph
         AddText "This system seems to be configured with whole disk layout (WDL)"
     fi
 
-    # MD Tools, Ralph Roth
-
-    if [ -r /etc/raidtab ]
-    then
-        exec_command "cat /proc/mdstat" "Software RAID: mdstat"
-        exec_command "cat /etc/raidtab" "Software RAID: raidtab"
-        [ -r /proc/devices/md ] && exec_command "cat /proc/devices/md" "Software RAID: MD Devices"
-    fi
-
+    # moved the Software RAID section to up above in the Filesystem section.  # modified on 20240119 by edrulrd
     dec_heading_level
 
 fi # terminates CFG_LVM wrapper
+#
+# CFG_ZFS
+#
+if [ "$CFG_ZFS" != "no" ]
+then # else skip to next paragraph
+   paragraph "ZFS Filesystem Status"
+   inc_heading_level
+
+  if [ "$(which zfs 2>/dev/null)" ] # check if the command is in the program's path # Modified on 20240119 by edrulrd
+  then
+      exec_command "zfs mount" "ZFS mount status"
+      exec_command "zfs get all" "ZFS properties"
+  else
+      exec_command " " "zfs command"  # execute nothing, but allow the N/A message to appear # modified on 20240119 by edrulrd
+  fi
+
+  if [ "$(which zpool 2>/dev/null)" ] # check if the command is in the program's path # Modified on 20240119 by edrulrd
+  then
+      exec_command "zpool list -H" "ZFS pool status"
+      exec_command "zpool list -Ho bootfs" "ZFS boot pool"
+      exec_command "zpool upgrade" "ZFS pool version"
+      exec_command "zpool history" "ZFS pool history"
+  else
+      exec_command " " "zpool command" # execute nothing, but allow the N/A message to appear # modified on 20240119 by edrulrd
+  fi
+
+  dec_heading_level
+fi
+# terminates CFG_ZFS wrapper
 
 ###########################################################################
 if [ "${CFG_NETWORK}" != "no" ]
@@ -1536,57 +1646,76 @@ then # else skip to next paragraph
   paragraph "Network Settings"
   inc_heading_level
 
-  if [[ -x /sbin/ifconfig ]]; then
-     exec_command "/sbin/ifconfig" "LAN Interfaces Settings (ifconfig)"    #D011 -- 16. March 2011,  28. Dezember 2011, ER by Heiko Andresen // to avoid erros of ifconfig not found
+  if [ -x /sbin/ifconfig ]; then
+     exec_command "/sbin/ifconfig" "LAN Interfaces Settings (ifconfig)"    #D011 -- 16. March 2011,  28. Dezember 2011, ER by Heiko Andresen // to avoid error if ifconfig not found
   fi
   exec_command "ip addr" "LAN Interfaces Settings (ip addr)"            #D011 -- 16. March 2011,  28. Dezember 2011, ER by Heiko Andresen
   exec_command "ip -s l" "Detailed NIC Statistics"                      #07.11.2011, 21:33 modified by Ralph Roth #* rar *#
   # nmcli not available on SLES11##FIXED## 20150304 by Ralph Roth
-  if [ -x /usr/bin/nmcli ]
+  if [ -x /usr/bin/nmcli ] && nmcli general 2>/dev/null 1>&2 # check for newer version # modified on 20240411 by edrulrd
   then
       # exec_command "nmcli nm status" "NetworkManager Status"
-      #06.11.2014, 20:34 added by Dusan Baljevic dusan.baljevic@ieee.org##FIXED## 20150304 by Ralph Roth //  not availabe on openSUSE 13.2!
+      #06.11.2014, 20:34 added by Dusan Baljevic dusan.baljevic@ieee.org##FIXED## 20150304 by Ralph Roth //  not available on openSUSE 13.2!
+      exec_command "nmcli general status" "NetworkManager status" # added on 20240303 by edrulrd
       exec_command "nmcli device status" "NetworkManager Device Status"   	#20150527 by Ralph Roth
       exec_command "nmcli connection show" "NetworkManager Connections"     	#06.11.2014, 20:34 added by Dusan Baljevic dusan.baljevic@ieee.org##FIXED## 20150304 by Ralph Roth
+      exec_command "nmcli network connectivity check" "NetworkManager-reported Internet access status" # added on 20240303 by edrulrd
+  else
+      if [ -x /usr/bin/nmcli ] && nmcli nm 2>/dev/null 1>&2 # check for older version # modified on 20240411 by edrulrd
+      then
+         exec_command "nmcli -p nm" "NetworkManager status" # added on 20240411 by edrulrd
+         exec_command "nmcli -p dev" "NetworkManager Device Status" # added on 20240411 by edrulrd
+         exec_command "nmcli -p con" "NetworkManager Connections" # added on 20240411 by edrulrd
+      fi
   fi ## /usr/bin/nmcli
 
   if [ -x /usr/sbin/ethtool ]     ###  22.11.2010, 23:44 modified by Ralph Roth
   then
-      LANS=$(netstat -i | tail -n+3 | awk '{print $1}' |grep -v ^lo)	# RR: ifconfig is decrecapted -> use netstat instead (gdha)
+      LANS=$(ip link | grep -v '^ ' | awk '{print $2}' | grep -v "lo:" | sed 's/://') # netstat is deprecated, use ip link instead # modified on 20240119 by edrulrd
       for i in ${LANS}
       do
         # netstat is now (2023) also deprecated, see issue #166
-        exec_command "/usr/sbin/ethtool ${i} 2>/dev/null; /usr/sbin/ethtool -i ${i}" "Ethernet Settings for Interface "${i}
+        exec_command "/usr/sbin/ethtool ${i} 2>/dev/null; /usr/sbin/ethtool -i ${i}" "Ethernet Settings for Interface ${i}"
       done; unset i
   fi
 
-  if [ ${DEBIAN} = "yes" ] ; then
+  if [ "${DEBIAN}" = "yes" ] ; then
     if [ -f /etc/network/interfaces ] ; then
       exec_command "grep -vE '(^#|^$)' /etc/network/interfaces" "Netconf Settings"
+      if [ -d /etc/network/interfaces.d ] ; then # added on 20240303 by edrulrd
+        for FILE in /etc/network/interfaces.d/* # added on 20240303 by edrulrd
+        do
+          [ -f "${FILE}" ] && if [ "$(grep -cvE "'^#|^ *$'" "${FILE}")" -gt 0 ] ; then # confirm there is at least one # modified on 20240322 by edrulrd
+            exec_command "grep -vE '^#|^ *$' ${FILE}" "${FILE}" # added on 20240303 by edrulrd
+          fi
+        done
+      fi
     fi
   fi
 
   ## Added 3/05/08 by krtmrrsn@yahoo.com, Marc Korte, display ethernet
   ##  LAN and route config files for RedHat.
-  if [ ${REDHAT} = "yes" ] ; then
-    ## There will always be at least ifcfg-lo.
+  if [ "${REDHAT}" = "yes" ] ; then
+    ## There will always be at least ifcfg-lo. # ... not anymore - CentOS9 stream indicates now deprecated in lieu of nmcli # modified on 20240303 by edrulrd
+    [ "$(find /etc/sysconfig/network-scripts/ -type f -name "ifcfg-*" -print 2>/dev/null | wc -l)" -gt 0 ] && # check for existence of files # modified on 20240303 by edrulrd
     exec_command "for CfgFile in /etc/sysconfig/network-scripts/ifcfg-*; do printf \"\n\n\$(basename \${CfgFile}):\n\n\"; cat \${CfgFile}; done" "LAN Configuration Files"
     ## Check first that any route-* files exist # modified on 20201005 by edrulrd
     ### # [20200319] {jcw} See if I can put this as a multi-line command.
-    exec_command "if [ $(find /etc/sysconfig/network-scripts/ -name route-* -print |wc -l) -gt 0 ]; then for RouteCfgFile in /etc/sysconfig/network-scripts/route-*; do printf \"\n\n\$(basename \${RouteCfgFile}):\n\n\"; cat \${RouteCfgFile}; done; fi" "Route Configuration Files" # modified on 20201005 by edrulrd
+    exec_command "if [ $(find /etc/sysconfig/network-scripts/ -name "route-*" -print |wc -l) -gt 0 ]; then for RouteCfgFile in /etc/sysconfig/network-scripts/route-*; do printf \"\n\n\$(basename \${RouteCfgFile}):\n\n\"; cat \${RouteCfgFile}; done; fi" "Route Configuration Files" # Shellcheck recommended change # modified on 20240303 by edrulrd
   fi
   ## End Marc Korte display ethernet LAN config files.
 
   # Need to add the interface to the mii-tool and mii-diag commands # added on 20201005 by edrulrd
-  [ -x /sbin/mii-tool ] && exec_command "for Interface in $(netstat -ni | tail -n +3 |awk '{print $1}'); do /sbin/mii-tool -v \${Interface}; done" "MII Status"
-  [ -x /sbin/mii-diag ] && exec_command "for Interface in $(netstat -ni | tail -n +3 |awk '{print $1}'); do /sbin/mii-diag -a \${Interface}; done" "MII Diagnostics"
+  # Warning: mii-tool is noted to be obsolete, especially for speeds > 100 mb # added on 20240119 by edrulrd
+  [ -x /sbin/mii-tool ] && exec_command "for Interface in $(ip link | grep -v '^ ' | awk '{print $2}' | grep -v "lo:" | sed 's/://'); do /sbin/mii-tool -v \${Interface} 2>/dev/null; done" "MII Status" # use ip link instead of netstat -ni # modified on 20240119 by edrulrd
+  [ -x /sbin/mii-diag ] && exec_command "for Interface in $(ip link | grep -v '^ ' | awk '{print $2}' | grep -v "lo:" | sed 's/://'); do /sbin/mii-diag -a \${Interface} 2>/dev/null; done" "MII Diagnostics" # use ip link instead of netstat -ni # modified on 20240119 by edrulrd
 
-    exec_command "ip route" "Network Routing"           #  07.11.2011, 21:37 modified by Ralph Roth #* rar *#
-    exec_command "netstat -r" "Routing Tables"
-    exec_command "ip neigh" "Network Neighborhood"      #  07.11.2011, 21:38 modified by Ralph Roth #* rar *#
+  exec_command "ip route | column -t" "Network Routing"  #  07.11.2011, 21:37 modified by Ralph Roth #* rar *# #added table format # modified on 20240119 by edrulrd
+  NETSTAT=$(which netstat 2> /dev/null) # modified on 20240119 by edrulrd
+  [ "${NETSTAT}" ] && [ -x "${NETSTAT}" ] && exec_command "netstat -r | column -t" "Routing Tables" # modified on 20240119 by edrulrd
+  exec_command "ip neigh | column -t" "Network Neighborhood"      #  07.11.2011, 21:38 modified by Ralph Roth #* rar *# # added table format # modified on 20240119 by edrulrd
 
-  NETSTAT=$(which netstat)
-  if [ ${NETSTAT} ]  && [ -x ${NETSTAT} ]; then
+  if [ "${NETSTAT}" ]  && [ -x "${NETSTAT}" ]; then
     # test if netstat version 1.38, because some options differ in older versions
     # MiMe: '\' auf awk Zeile wichtig
     RESULT=$(netstat -V | awk '/netstat/ {
@@ -1604,7 +1733,6 @@ then # else skip to next paragraph
     fi
 
     exec_command "netstat -s" "Summary statistics for each protocol"
-    [ -x /usr/sbin/nstat ] && exec_command "/usr/sbin/nstat" "Other Network statistics" # gdha, 13/oct/2014 #47
     exec_command "netstat -i" "Kernel Interface table"
     # MiMe: iptables since 2.4.x
     # MiMe: iptable_nat realisiert dabei das Masquerading
@@ -1613,42 +1741,58 @@ then # else skip to next paragraph
       exec_command "netstat -M" "Masqueraded sessions"
     fi
     if [ -e /proc/net/ip_conntrack ]; then
-      exec_command "cat /proc/net/ip_conntrack" "Masqueraded sessions"
+      exec_command "cat /proc/net/ip_conntrack | column -t" "Masqueraded sessions" # show in table format to make more readable # modified on 20240322 by edrulrd
     fi
     exec_command "netstat -an" "list of all sockets"
   fi  ## netstat
   # -----------------------------------------------------------------------------
-  if [ -x /usr/sbin/ss ]
+
+  # Since netstat is deprecated, the following commands attempt to show the equivalent output using more modern network commands # added on 20240119 by edrulrd
+  exec_command "ip maddress show" "Multicast IP addresses" # replacement for netstat -gi # added on 20240119 by edrulrd
+
+  if [ "$(which ss 2>/dev/null)" ] # check if the command is in the program's path # added on 20240119 by edrulrd
   then
-    exec_command "/usr/sbin/ss -planeto" "TCP Listening Sockets Statistics" # changed 20131211 by Ralph Roth
-    exec_command "/usr/sbin/ss -planeuo" "UDP Listening Sockets Statistics" # UDP and listening? :)
+    exec_command "ss -planeto" "TCP Listening Sockets Statistics" # changed 20131211 by Ralph Roth # modified on 20240119 by edrulrd
+    exec_command "ss -planeuo" "UDP Listening Sockets Statistics" # UDP and listening? :) # modified on 20240119 by edrulrd
   fi # ss
+  if [ "$(which pminfo 2>/dev/null)" ] # check if the command is in the program's path # Added on 20240119 by edrulrd
+  then
+     exec_command "pminfo -f network | column -c ${CFG_TEXTWIDTH}" "Summary statistics for each protocol"  # replacement for the netstat -s command.  Is part of the "pcp" package if installed.  # added on 20240119 by edrulrd
+  fi
+
+  if [ "$(which nstat 2>/dev/null)" ] # just check if it's in the path # modified on 20240119 by edrulrd
+  then
+     exec_command "nstat -a | grep -v '^#' | column -c ${CFG_TEXTWIDTH}" "Other Network statistics" # Added on 20240119 by edrulrd
+  fi
+
+  exec_command "ip -statistics link" "Kernel Interface table" # replacement for the netstat -i command.  # added on 20240119 by edrulrd
+  which ss 2>/dev/null 1>&2 && exec_command "ss -a | column -c ${CFG_TEXTWIDTH}" "list of all sockets" # replacement for the netstat -a command.  # modified on 20240322 by edrulrd
   # -----------------------------------------------------------------------------
   ## Added 4/07/06 by krtmrrsn@yahoo.com, Marc Korte, probe and display
   ##        kernel interface bonding info.
   if [ -e /proc/net/bonding ]; then
-    for BondIF in `ls -1 /proc/net/bonding`
+    find /proc/net/bonding -type f | while read -r BondIF
     do
-      exec_command "cat /proc/net/bonding/${BondIF}" "Bonded Interfaces: ${BondIF}"
+      exec_command "cat ${BondIF}" "Bonded Interfaces: ${BondIF}"
     done
   fi
   ## End Marc Korte kernel interface bonding addition.
   # -----------------------------------------------------------------------------
-  DIG=`which dig`
-  if [ -n "${DIG}" ] && [ -x ${DIG} ] ; then
-    exec_command "dig `hostname -f`" "dig hostname"
+  DIG=$(which dig 2>/dev/null) # added /dev/null # modified on 20240202 by edrulrd
+  if [ -n "${DIG}" ] && [ -x "${DIG}" ] ; then
+    exec_command "dig $(hostname -f) | grep -vE '^;|^ *$'" "dig hostname"
   else
-    NSLOOKUP=`which nslookup`
-    if [ -n "${NSLOOKUP}" ] && [ -x ${NSLOOKUP} ] ; then
-      exec_command "nslookup `hostname -f`" "Nslookup hostname"
+    NSLOOKUP=$(which nslookup)
+    if [ -n "${NSLOOKUP}" ] && [ -x "${NSLOOKUP}" ] ; then
+      exec_command "nslookup $(hostname -f)" "Nslookup hostname"
     fi
   fi
 
-  exec_command "grep -vE '^#|^ *$' /etc/hosts" "/etc/hosts"
+  exec_command "grep -vE '^#|^ *$' /etc/hosts | column -t" "/etc/hosts" # added column # modified on 20240119 by edrulrd
 #
   if [ -f /proc/sys/net/ipv4/ip_forward ] ; then
-    FORWARD=`cat /proc/sys/net/ipv4/ip_forward`
-    if [ ${FORWARD} = "0" ] ; then
+    FORWARD=$(cat /proc/sys/net/ipv4/ip_forward)
+    if [ "${FORWARD}" = "0" ] ; then
       exec_command "echo \"IP forward disabled\"" "IP forward"
     else
       exec_command "echo \"IP forward enabled\"" "IP forward"
@@ -1704,7 +1848,7 @@ then # else skip to next paragraph
   # RedHat default
   ## exec_command "grep -vE '^#|^ *$' /etc/inetd.conf" "Internet Daemon Configuration"
   # Confirm there is at least one file # added on 20201005 by edrulrd
-  if [ -d /etc/xinetd.d ] && [ $(find /etc/xinetd.d -type f -print | wc -l) -gt 0 ]; then # modified on 20201005 by edrulrd
+  if [ -d /etc/xinetd.d ] && [ "$(find /etc/xinetd.d -type f -print | wc -l)" -gt 0 ]; then # modified on 20201005 by edrulrd
     # mdk/rh has a /etc/xinetd.d directory with a file per service
     exec_command "cat /etc/xinetd.d/*|grep -vE '^#|^ *$'" "/etc/xinetd.d/ section"
   fi
@@ -1713,14 +1857,15 @@ then # else skip to next paragraph
   if [ -f /etc/resolv.conf ] ; then
      exec_command "grep -vE '^#|^ *$' /etc/resolv.conf;echo; ( [ -f /etc/nsswitch.conf ] &&  grep -vE '^#|^ *$' /etc/nsswitch.conf)" "DNS & Names"
   fi
+  which resolvectl 2>/dev/null 1>&2 && exec_command "resolvectl status" "DNS Resolvectl" # check systemd-resolved.service managed name resolution # added on 20240421 by edrulrd
   [ -r /etc/bind/named.boot ] && exec_command "grep -v '^;' /etc/named.boot"  "DNS/Named"
 
   if [ -s /etc/dnsmasq.conf ] ; then
-     exec_command "cat /etc/dnsmasq.conf; systemctl status dnsmasq" "DNSMASQ"
+     exec_command "cat /etc/dnsmasq.conf | grep -vE '^#|^ *$'; which systemctl 2>/dev/null 1>&2 && systemctl status dnsmasq" "DNSMASQ" # check for systemctl before checking status # modified on 20240411 by edrulrd
   fi
 
   if [ -s /etc/nscd.conf ] ; then
-     exec_command "cat /etc/nscd.conf" "Name Service Cache Daemon (NSCD)"
+     exec_command "cat /etc/nscd.conf | grep -vE '^#|^ *$'" "Name Service Cache Daemon (NSCD)" # removed commented and blank lines # modified on 20240202 by edrulrd
   fi
 
   if [ -x /usr/sbin/nullmailer-send ]	## backport from cfg2html-linux 2.97 -- 04.04.2015, rr
@@ -1739,6 +1884,9 @@ then # else skip to next paragraph
             MTA='/usr/sbin/sendmail/sendmail.sendmail'
           elif [ -x /usr/sbin/sendmail ]; then
             MTA='/usr/sbin/sendmail'
+            if [ -L /usr/sbin/sendmail ]; then # found /usr/sbin/sendmail pointing to exim4 # added on 20240202 by edrulrd
+              MTA=$(readlink -e /usr/sbin/sendmail) # reset the MTA to what we're pointing to # added on 20240202 by edrulrd
+            fi
           fi
       fi
       case "${MTA}" in
@@ -1752,6 +1900,9 @@ then # else skip to next paragraph
           #  From cfg2html-hpux
           exec_command "cat $(grep -e '^Kmailertable' /etc/mail/sendmail.cf | cut -d ' ' -f 4 | sed s/\.db//) /dev/null | grep -vE '^#|^ *$'" "Sendmail Mailertable"
           ;;
+        *exim?) # added on 20240202 by edrulrd
+          exec_command "${MTA} --version | grep version" "Sendmail version ($MTA)" # added on 20240202 by edrulrd
+          ;;
         *)
           exec_command "echo SENDMAIL or POSTFIX VERSION not found issue" "Sendmail/Postfix version"
           ;;
@@ -1763,22 +1914,22 @@ then # else skip to next paragraph
     aliasespath="/etc/mail"
   fi
   if [ -f ${aliasespath}/aliases ] ; then
-    exec_command "grep -vE '^#|^ *$' ${aliasespath}/aliases" "Email Aliases"
+    exec_command "grep -vE '^#|^ *$' ${aliasespath}/aliases | column -t" "Email Aliases" # added column cmd # modified on 20240119 by edrulrd
   fi
   #exec_command "grep -vE '^#|^$' /etc/rc.config.d/nfsconf" "NFS settings"
   exec_command "ps -ef|grep -E '[Nn]fsd|[Bb]iod'" "NFSD and BIOD utilization"   ## fixed 2007-02-28 Oliver Schwabedissen
 
   # if portmap not available, do nothing
-  RES=`ps xau | grep [Pp]ortmap`
+  RES=$(pgrep -flx '.*(P|p)ortmap.*|.*rpcbind.*') # check if portmap or rpcbind is running # modified on 20240322 by edrulrd
   if [ -n "${RES}" ] ; then
     exec_command "rpcinfo -p " "RPC (Portmapper)"
     # test if mountd running
-    MOUNTD=`rpcinfo -p | awk '/mountd/ {print $5; exit}'`
+    MOUNTD=$(rpcinfo -p | awk '/mountd/ {print $5; exit}')
   #  if [ "${MOUNTD}"="mountd" ] ; then
     if [ -n "${MOUNTD}" ] ; then
       exec_command "rpcinfo -u 127.0.0.1 100003" "NSFD responds to RPC requests"
-      SHOWMOUNT=`which showmount`   ## 2007-02-27 Oliver Schwabedissen
-      if [ ${SHOWMOUNT} ] && [ -x ${SHOWMOUNT} ] ; then
+      SHOWMOUNT=$(which showmount 2>/dev/null)   ## 2007-02-27 Oliver Schwabedissen # added /dev/null # modified on 20240202 by edrulrd
+      if [ "${SHOWMOUNT}" ] && [ -x "${SHOWMOUNT}" ] ; then
         exec_command "${SHOWMOUNT} -a" "Mounted NFS File Systems"
       fi
       # SUSE
@@ -1791,19 +1942,19 @@ then # else skip to next paragraph
       if [ -f /etc/auto.misc ] ;then
         exec_command "grep -vE '^#|^$' /etc/auto.misc" "NFS Automounter misc Settings"
       fi
-      if [ -f /proc/net/rpc/nfs ] ; then
-        exec_command "nfsstat" "NFS Statistics"
-      fi
     fi # mountd
+    if [ -f /proc/net/rpc/nfs ] || [ "$(which nfsstat 2>/dev/null)" ] ; then # if nfsstat command is available, try to run it
+      nfsstat > "${TMP_DIR}"/cfg2html_nfsstat 2>/dev/null && exec_command "cat ${TMP_DIR}/cfg2html_nfsstat" "NFS Statistics"
+    fi
   fi
 
   #(ypwhich 2>/dev/null>/dev/null) && \
   #    (exec_command "what /usr/lib/netsvc/yp/yp*; ypwhich" "NIS/Yellow Pages")
 
   # ntpq live sometimes in /usr/bin or /usr/sbin
-  NTPQ=`which ntpq 2>/dev/null` # modified in case ntpq not installed, on 20201004 by edrulrd
+  NTPQ=$(which ntpq 2>/dev/null) # modified in case ntpq not installed, on 20201004 by edrulrd
   # if [ ${NTPQ} ] && [ -x ${NTPQ} ] ; then
-  if [ -n "${NTPQ}" -a -x "${NTPQ}" ] ; then      # fixes by Ralph Roth, 180403
+  if [ -n "${NTPQ}" ] && [ -x "${NTPQ}" ] ; then      # fixes by Ralph Roth, 180403
     exec_command "${NTPQ} -p" "XNTP Time Protocol Daemon"
   fi
 
@@ -1811,14 +1962,14 @@ then # else skip to next paragraph
   # Added by Dusan Baljevic on 13 July 2014
   #
   CHRONYC=$(which chronyc 2>/dev/null)
-  if [ -n "${CHRONYC}" -a -x "${CHRONYC}" ] ; then
+  if [ -n "${CHRONYC}" ] && [ -x "${CHRONYC}" ] ; then
     exec_command "${CHRONYC} -n sourcestats" "CHRONY Time Protocol Daemon sources"
     exec_command "${CHRONYC} -n tracking" "CHRONY Time Protocol Daemon tracking"
   fi
 
-  exec_command "timedatectl status" "System Time and Date Status"  # Added by Dusan Baljevic on 6 November 2014
+  which timedatectl 2>/dev/null 1>&2 && exec_command "timedatectl status" "System Time and Date Status"  # Added by Dusan Baljevic on 6 November 2014 # modified on 20240322 by edrulrd
 
-  exec_command "hwclock -r" "Time: HWClock" # rr, 20121201
+  which hwclock 2>/dev/null 1>&2 && exec_command "hwclock -r 2>/dev/null" "Time: HWClock" # rr, 20121201 # check for being in the path, but don't show it if is # modified on 20240202 by edrulrd
   [ -f /etc/ntp.conf ] && exec_command "grep  -vE '^#|^ *$' /etc/ntp.conf" "ntp.conf"
   [ -f /etc/shells ] && exec_command "grep  -vE '^#|^ *$'  /etc/shells" "FTP Login Shells"
   [ -f /etc/ftpusers ] && exec_command "grep  -vE '^#|^ *$'  /etc/ftpusers" "FTP Rejections (/etc/ftpusers)"
@@ -1828,14 +1979,14 @@ then # else skip to next paragraph
   [ -f /etc/host.conf ] && exec_command "grep  -vE '^#|^ *$' /etc/host.conf" "host.conf"
 
   ######### SNMP ############
-  [ -f /etc/snmpd.conf ] && exec_command "grep -vE '^#|^ *$' /etc/snmpd.conf" "Simple Network Management Protocol (SNMP)"
-  [ -f /etc/snmp/snmpd.conf ] && exec_command "grep -vE '^#|^ *$' /etc/snmp/snmpd.conf" "Simple Network Management Protocol (SNMP)"
+  [ -f /etc/snmpd.conf ] && exec_command "grep -vE '^#|^ *$' /etc/snmpd.conf | column -t" "Simple Network Management Protocol (SNMP)" # added column cmd # modified on 20240119 by edrulrd
+  [ -f /etc/snmp/snmpd.conf ] && exec_command "grep -vE '^#|^ *$' /etc/snmp/snmpd.conf | column -t" "Simple Network Management Protocol (SNMP)" # added column cmd # modified on 20240119 by edrulrd
   [ -f /etc/snmp/snmptrapd.conf ] && exec_command "grep -vE '^#|^ *$' /etc/snmp/snmptrapd.conf" "SNMP Trapdaemon config"
 
   [ -f  /opt/compac/cma.conf ] && "grep -vE '^#|^ *$' /opt/compac/cma.conf" "HP Insight Management Agents configuration"
 
   ## ssh
-  [ -f /etc/ssh/sshd_config ] && exec_command "grep -vE '^#|^ *$' /etc/ssh/sshd_config" "sshd config"
+  [ -f /etc/ssh/sshd_config ] && exec_command "grep -vE '^#|^ *$' /etc/ssh/sshd_config" "sshd config" && ( [ -d /run/sshd ] ||  mkdir -p /run/sshd ) && exec_command "sshd -T" "All sshd settings" # create a /run/sshd directory (and /run too if not present) if sshd is not yet running # modified on 20240411 by edrulrd
   [ -f /etc/ssh/ssh_config ] && exec_command "grep -vE '^#|^ *$' /etc/ssh/ssh_config" "ssh config"
 
   dec_heading_level
@@ -1901,19 +2052,19 @@ then # else skip to next paragraph
       AddText "See: Modules failing to load at boot time - TID 7005784"
     fi
 
-    if [ "${DEBIAN}" = "no" ] && [ "SLACKWARE" = "no" ] ; then
+    if [ "${DEBIAN}" = "no" ] && [ "${SLACKWARE}" = "no" ] ; then # fixed typo # modified on 20240303 by edrulrd
             which rpm > /dev/null  && exec_command "rpm -qa | grep -e ^k_def -e ^kernel -e k_itanium -e k_smp -e ^linux" "Kernel RPMs" # rar, SUSE+RH+Itanium2
     fi
 
     if [ "${DEBIAN}" = "yes" ] ; then
         exec_command "dpkg -l | grep -i -e Kernel-image -e Linux-image" "Kernel related DEBs"
     fi
-    [ -x /usr/sbin/getsebool ] && exec_command "/usr/sbin/getsebool -a" "SELinux Settings"
+    [ -x /usr/sbin/getsebool ] && exec_command "/usr/sbin/getsebool -a | column -c ${CFG_TEXTWIDTH}" "SELinux Settings" # added column cmd # modified on 20240202 by edrulrd
 
     who -b 2>/dev/null > /dev/null && exec_command "who -b" "System boot" #  23.03.2006, 13:18 modified by Ralph Roth
     exec_command "cat /proc/cmdline" "Kernel command line"
 
-    exec_command "getconf GNU_LIBC_VERSION" "libc Version (getconf)"
+    which getconf 2>/dev/null 1>&2 && exec_command "getconf GNU_LIBC_VERSION" "libc Version (getconf)" # confirm get conf exists # modified on 20240322 by edrulrd
 
     if [ -r  /lib/libc.so.5 ]
     then
@@ -1943,14 +2094,15 @@ then # else skip to next paragraph
             which rpm > /dev/null  && exec_command "rpm -qi glibc" "libc6 Version (RPM)" # rar, SUSE+RH
     fi
 
-    exec_command "/sbin/ldconfig -vN  2>/dev/null" "Run-time link bindings"		### changed 20130730 by Ralph Roth
+    [ -x /sbin/ldconfig ] && # confirm ldconfig is available  # modified on 20240322 by edrulrd
+    exec_command "/sbin/ldconfig -vN  2>/dev/null" "Run-time link bindings" ### changed 20130730 by Ralph Roth # modified on 20240119 by edrulrd # removed column cmd(too messy) # modified on 20240202 by edrulrd
 
     # MiMe: SUSE patched kernel params into /proc
     if [ -e /proc/config.gz ] ; then
-      exec_command "zcat /proc/config.gz | grep -vE '^#|^ *$'" "Kernelparameter /proc/config.gz"
+      exec_command "zcat /proc/config.gz | grep -vE '^#|^ *$' | column -c ${CFG_TEXTWIDTH}" "Kernel Parameter /proc/config.gz" # added column cmd # modified on 20240119 by edrulrd
     else
       if [ -e /usr/src/linux/.config ] ; then
-        exec_command "grep -vE '^#|^ *$' /usr/src/linux/.config" "Kernelsource .config"
+        exec_command "grep -vE '^#|^ *$' /usr/src/linux/.config" "Kernel Source .config" # modified on 20240119 by edrulrd
       fi
     fi
 
@@ -1962,13 +2114,13 @@ then # else skip to next paragraph
     fi
 
     if [ -x /sbin/sysctl ] ; then ##  11.01.2010, 10:44 modified by Ralph Roth
-      exec_command "/sbin/sysctl -a 2> /dev/null | sort -u" "configured kernel variables at runtime"  ## rr, 20120212
-      exec_command "cat /etc/sysctl.conf | sort -u |grep -v -e ^# -e ^$" "configured kernel variables in /etc/sysctl.conf"
+      exec_command "/sbin/sysctl -a 2> /dev/null | sort -u | column -c ${CFG_TEXTWIDTH}" "Configured Kernel variables at runtime"  ## rr, 20120212 # added column # modified on 20240119 by edrulrd
+      exec_command "cat /etc/sysctl.conf | sort -u |grep -v -e ^# -e ^$" "Configured Kernel variables in /etc/sysctl.conf" # minor title change # modified on 20240119 by edrulrd
     fi
 
     # Added by Dusan Baljevic on 15 July 2013
     #
-    BOOTCTL=$(which bootctl)
+    BOOTCTL=$(which bootctl 2>/dev/null) # added /dev/null # modified on 20240202 by edrulrd
     if [ -n "${BOOTCTL}" ] && [ -x "${BOOTCTL}" ] ; then
       exec_command "${BOOTCTL} status | awk NF" "Firmware and boot manager settings"
     fi
@@ -1980,7 +2132,7 @@ then # else skip to next paragraph
     if [ -d /sys/devices ]
     then                                                    # The new Linux 2.6.x  I/O system and the I/O scheduler
         exec_command GetElevator "Kernel I/O Elevator"      # 18.07.2011, 13:33 modified by Ralph Roth #* rar *#
-        exec_command "lsblk -ta" "List of Block Devices"    # changed 20130627 by Ralph Roth
+        exec_command "lsblk -ta -o +UUID" "List of Block Devices"    # changed 20130627 by Ralph Roth # add UUID option # modified on 20240119 by edrulrd
     fi
     dec_heading_level
 
@@ -2017,20 +2169,19 @@ then # else skip to next paragraph
     fi
 
     # MiMe: fuer X braucht man Rechte
-    if [ -x /usr/X11R6/bin/xhost ] ; then
-      /usr/X11R6/bin/xhost > /dev/null 2>&1
-      if [ "$?" -eq "0" ] ;
-      then
-        # Gratien D'haese
-        # fix for sshdX11
-        # old command   [ -x /usr/bin/X11/xdpyinfo ] && [ -n "${DISPLAY}" ] && exec_command "/usr/bin/X11/xdpyinfo" "X11"
-        # this will only check if the display is 0 or 1 which is more then enough
-            [ -x /usr/bin/X11/xdpyinfo ] && [ -n "${DISPLAY}" ] && [ `echo ${DISPLAY} | cut -d: -f2 | cut -d. -f1` -le 1 ] && exec_command "/usr/bin/X11/xdpyinfo" "X11"
-            [ -x /usr/bin/X11/fsinfo ] && [ -n "${FONTSERVER}" ] && exec_command "/usr/bin/X11/fsinfo" "Font-Server"
-      fi
+    if [ "$(which xhost 2>/dev/null)" ] # xhost sometimes not in /usr/X11R6/bin # modified on 20240322 by edrulrd
+    then
+      # Gratien D'haese
+      # fix for sshdX11
+      # old command   [ -x /usr/bin/X11/xdpyinfo ] && [ -n "${DISPLAY}" ] && exec_command "/usr/bin/X11/xdpyinfo" "X11"
+      # this will only check if the display is 0 or 1 which is more then enough
+        [ -x /usr/bin/X11/xdpyinfo ] && [ -n "${DISPLAY}" ] && [ "$(echo "${DISPLAY}" | cut -d: -f2 | cut -d. -f1)" -le 1 ] && exec_command "/usr/bin/X11/xdpyinfo" "X11"
+        [ -x /usr/bin/X11/fsinfo ] && [ -n "${FONTSERVER}" ] && exec_command "/usr/bin/X11/fsinfo" "Font-Server"
     fi
 
     [ -x /opt/gnome/bin/gconftool-2 ] &&  exec_command "gconftool-2 -R /system"  "GNOME System Config"  ##  BF=bernhard keppel/110711, 30.11.2010/Ralph Roth
+
+    [ "$(which nvidia-detect 2>/dev/null)" ] &&  exec_command "nvidia-detect" "nvidia driver" # show recommended packages for nvidia GPU # added on 20240322 by edrulrd
 
     dec_heading_level
 
@@ -2047,24 +2198,25 @@ then # else skip to next paragraph
     inc_heading_level
 
     [ -x /usr/sbin/rear ] && exec_command "/usr/sbin/rear dump" "ReaR Configuration"    #  14.06.2011, 18:58 modified by Ralph Roth #* rar *#
+    [ -x /usr/bin/flatpak ] && exec_command "/usr/bin/flatpak list" "Flatpak packages installed" # +26.02.2024, rr
 
     if [ -d /usr/local/bin ] ; then
-      exec_command "ls -lisa /usr/local/bin" "Files in /usr/local/bin"
+      exec_command "ls -lisa /usr/local/bin | column -t" "Files in /usr/local/bin" # show in columns # modified on 20240322 by edrulrd
     fi
     if [ -d /usr/local/sbin ] ; then
-      exec_command "ls -lisa /usr/local/sbin" "Files in /usr/local/sbin"
+      exec_command "ls -lisa /usr/local/sbin | column -t" "Files in /usr/local/sbin"
     fi
     if [ -d /opt ] ; then
-      exec_command "ls -lisa /opt" "Files in /opt"
+      exec_command "ls -lisa /opt | column -t" "Files in /opt"
     fi
 
 ############ Samba and Swat ########################
 
     if [ -f /etc/inetd.conf ] ; then
-      SWAT=`grep swat /etc/services /etc/inetd.conf`
+      SWAT=$(grep swat /etc/services /etc/inetd.conf)
     fi
     if [ -f /etc/xinetd.conf ] ; then
-      SWAT=`grep swat /etc/services /etc/xinetd.conf`
+      SWAT=$(grep swat /etc/services /etc/xinetd.conf)
     fi
 
     [ -n "${SWAT}" ] && exec_command  "echo ${SWAT}" "Samba: SWAT-Port"
@@ -2073,14 +2225,14 @@ then # else skip to next paragraph
     ### Debian...., maybe a smbstatus -V/samba -V is useful
     [ -x /usr/bin/smbstatus ] && exec_command "/usr/bin/smbstatus 2>/dev/null" "Samba (smbstatus)"  ## fixed 2007-02-27 Oliver Schwabedissen
     [ -x /usr/bin/testparm ] && exec_command "/usr/bin/testparm -s 2> /dev/null" "Samba Configuration (testparm)" #  09.01.2008, 14:53 modified by Ralph Roth
-    [ -f /etc/samba/smb.conf ] && exec_command "cat /etc/samba/smb.conf" "Samba Configuration (smb.conf)" #*#  Alexander De Bernardi, 20100421 testparm does not show complete config
+    [ -f /etc/samba/smb.conf ] && exec_command "cat /etc/samba/smb.conf | grep -vE '^[#;]|^ *$'" "Samba Configuration (smb.conf)" #*#  Alexander De Bernardi, 20100421 testparm does not show complete config # remove commented and blank lines # modified on 20240202 by edrulrd
     [ -f /etc/init.d/samba ] && exec_command "ps -ef | grep -E '(s|n)m[b]'" "Samba Daemons"
 
     if [ -x /usr/sbin/lpc ] ; then
       exec_command "/usr/sbin/lpc status" "BSD Printer Spooler and Printers"    #*# Alexander De Bernardi, 20100310
     fi
      if [ -x /usr/bin/lpstat ] ; then
-     exec_command "/usr/bin/lpstat -t" "SYSV Printer Spooler and Printers"      #*# Alexander De Bernardi, 20100310
+     exec_command "/usr/bin/lpstat -t 2>/dev/null" "SYSV Printer Spooler and Printers"      #*# Alexander De Bernardi, 20100310 # dismiss error report # modified on 20240202 by edrulrd
      fi
 #     if [ -x /usr/bin/hp-info ] ; then
 #
@@ -2125,7 +2277,7 @@ then # else skip to next paragraph
       inc_heading_level
 
           NetBuVersion=$(find /usr/openv/netbackup -name "version")
-          if [ -e ${NetBuVersion} ] ; then
+          if [ -e "${NetBuVersion}" ] ; then
             exec_command "cat ${NetBuVersion}" "Veritas Netbackup Version"
           fi
           exec_command "cat /usr/openv/netbackup/bp.conf" "Veritas Netbackup Configuration"
@@ -2140,11 +2292,11 @@ then # else skip to next paragraph
             exec_command "${TIMEOUTCMD} 20 /usr/openv/netbackup/bin/bpclimagelist | head -12" "Overview of the last 10 backups"
             LASTFULL=$(${TIMEOUTCMD} 20 /usr/openv/netbackup/bin/bpclimagelist | grep Full | head -1 | cut -c1-10)
             [[ -z "${LASTFULL}" ]] && LASTFULL=$(date +%m/%d/%Y) # if no output was retrieved we use today's date
-            LASTFULLSEC=$(date +%s -d ${LASTFULL})
+            LASTFULLSEC=$(date +%s -d "${LASTFULL}")
             sleep 1 # to have at least 1 sec difference
             NOWSEC=$(date +%s)
 
-            let DIFFDAYS=$(( (${NOWSEC}-${LASTFULLSEC})/86400 ))  # [20200821] {jcw} added 'let' and removed spaces.
+            DIFFDAYS=$(( (NOWSEC-LASTFULLSEC)/86400 ))  # [20200821] {jcw} added 'let' and removed spaces. # shellcheck: integer arithmetic doesn't need '$' in variables # modified on 20240322 by edrulrd
             if [[ ${DIFFDAYS} -gt 14 ]]; then
                 AddText "Warning: Last full backup is ${DIFFDAYS} days old"
             else
@@ -2156,7 +2308,7 @@ then # else skip to next paragraph
             ## Use FS="=" in case there's no whitespace in the SERVER lines.
 ### # [20200319] {jcw} See if I can put this as a multi-line command.
           exec_command "for NetBuServer in $(awk 'BEGIN {FS="="} /SERVER/ {printf ${NF}}' /usr/openv/netbackup/bp.conf); do ping -c 3 \${NetBuServer} && echo \"\"; done" "Veritas Netbackup Servers Ping Check"
-          if ping -c 3 $(awk 'BEGIN {FS="="} /SERVER/ {print ${NF}}' /usr/openv/netbackup/bp.conf | head -1) >/dev/null
+          if ping -c 3 "$(awk 'BEGIN {FS="="} /SERVER/ {print ${NF}}' /usr/openv/netbackup/bp.conf | head -1)" >/dev/null
           then
             exec_command "/usr/openv/netbackup/bin/bpclntcmd -pn" "Veritas Netbackup Client to Server Inquiry"
           fi
@@ -2172,6 +2324,15 @@ then # else skip to next paragraph
           exec_command "/opt/omni/bin/omnicheck -version" "HP Data Protector version"
           exec_command "/opt/omni/bin/omnicheck -patches -host $(hostname)" "HP Data Protector patches"
       fi
+    fi
+
+### Section about borg and borgmatic backups # added on 20240119 by edrulrd
+    if [ "$(which borgmatic 2>/dev/null)" ] ; then # added /dev/null # modified on 20240202 by edrulrd
+      dec_heading_level
+      paragraph "Borg backups"
+      inc_heading_level
+      exec_command "cat ~root/.config/borgmatic/config.yaml 2>/dev/null | grep -vE '^ *#|^ *$'" "Borgmatic backup configuration"
+      exec_command "borgmatic -l --syslog-verbosity=-1 -c ~root/.config/borgmatic/config.yaml 2>/dev/null" "List of borg backups"
     fi
 
 ### new stuff with 2.83 by Dusan // # changed 20140319 by Ralph Roth
@@ -2203,7 +2364,7 @@ then
     exec_command "${PUPPETEXE} config print modulepath" "Puppet configuration module paths"
   fi
 
-  # gdha - 16/Nov/2015 - added TIEMOUTCMD - issue #95
+  # gdha - 16/Nov/2015 - added TIMEOUTCMD - issue #95
   exec_command "${TIMEOUTCMD} 60 ${PUPPETEXE} resource user" "Users in Puppet Resource Abstraction Layer (RAL)"
   exec_command "${PUPPETEXE} resource package" "Packages in Puppet Resource Abstraction Layer (RAL)"
   # SUSE-SU-2014:0155-1 # seems to crash plain installed servers, puppet not configured ## changed 20140429 by Ralph Roth
@@ -2252,7 +2413,7 @@ then
   [ -x /usr/lpp/mmfs/bin/mmnetverify ] && exec_command "/usr/lpp/mmfs/bin/mmnetverify connectivity -N all -T all" "GPFS network verification"
 fi
 
-# Added by Dusan Baljevic on 24 December 2017
+# Added by Dusan Baljevic (dusan.baljevic@ieee.org) on 24 December 2017
 #
 SSSDCONF="/etc/sssd/sssd.conf"
 if [ -s "${SSSDCONF}" ] ; then
@@ -2262,56 +2423,15 @@ if [ -s "${SSSDCONF}" ] ; then
     exec_command "cat ${SSSDCONF}" "SSSD configuration"
     exec_command "realm list" "List enrollments in realms"
     [ -x /usr/bin/systemctl ] && exec_command "/usr/bin/systemctl status sssd" "Systemd SSSD status"
-    exec_command "getent passwd" "List all users"
+    exec_command "getent passwd" "List all users"  ## Fix-Typing mistake result in invalid command (Issue #175)
     exec_command "getent group" "List all groups"
     [ -x /sbin/sssctl ] && exec_command "/sbin/sssctl config-check" "SSSD configuration verification"
     [ -x /sbin/sssctl ] && exec_command "/sbin/sssctl domain-list" "SSSD domain list"
     [ -x /sbin/sssctl ] && exec_command "/sbin/sssctl domain-list | xargs -n1 /sbin/sssctl domain-status" "SSSD domain status"
 fi
 
-## this is newer stuff 2020
-if  [ -x /usr/lpp/mmfs/bin/mmlscluster ]
-then
-    ###  IBM GPFS clusters
-    ###  Made by Dusan.Baljevic@ieee.org ### 24.12.2017
-	dec_heading_level
-	paragraph "IBM GPFS Clustering"
-	inc_heading_level
-	[ -x /usr/lpp/mmfs/bin/mmlscluster ] && exec_command "/usr/lpp/mmfs/bin/mmlscluster" "GPFS cluster status"
-	[ -x /usr/lpp/mmfs/bin/mmlsconfig ] && exec_command "/usr/lpp/mmfs/bin/mmlsconfig" "GPFS config"
-	[ -x /usr/lpp/mmfs/bin/mmfsenv ] && exec_command "/usr/lpp/mmfs/bin/mmfsenv" "GPFS environment"
-	[ -x /usr/lpp/mmfs/bin/mmdiag ] && exec_command "/usr/lpp/mmfs/bin/mmdiag --config" "GPFS complete configuration status"
-	[ -x /usr/lpp/mmfs/bin/mmlsnode ] && exec_command "/usr/lpp/mmfs/bin/mmlsnode -a" "GPFS node status"
-	[ -x /usr/lpp/mmfs/bin/mmlsnsd ] && exec_command "/usr/lpp/mmfs/bin/mmlsnsd -a" "GPFS Network Shared Disk (NSD) status"
-	[ -x /usr/lpp/mmfs/bin/mmlsfs ] && exec_command "/usr/lpp/mmfs/bin/mmlsfs all" "GPFS file system status"
-	[ -x /usr/lpp/mmfs/bin/mmlsmount ] && exec_command "/usr/lpp/mmfs/bin/mmlsmount all -L" "GPFS mount status"
-	[ -x /usr/lpp/mmfs/bin/mmlslicense ] && exec_command "/usr/lpp/mmfs/bin/mmlslicense -L" "GPFS licenses"
-	[ -x /usr/lpp/mmfs/bin/mmhealth ] && exec_command "/usr/lpp/mmfs/bin/mmhealth node show --verbose" "GPFS node health status"
-	[ -x /usr/lpp/mmfs/bin/mmhealth ] && exec_command "/usr/lpp/mmfs/bin/mmhealth cluster show" "GPFS cluster health status"
-	[ -x /usr/lpp/mmfs/bin/mmhealth ] && exec_command "/usr/lpp/mmfs/bin/mmhealth thresholds list" "GPFS thresholds"
-	[ -x /usr/lpp/mmfs/bin/mmlsnode ] && exec_command "/usr/lpp/mmfs/bin/mmlsnode -N waiters -L" "GPFS waiters"
-	[ -x /usr/lpp/mmfs/bin/mmdiag ] && exec_command "/usr/lpp/mmfs/bin/mmdiag --network" "GPFS mmdiag network"
-	[ -x /usr/lpp/mmfs/bin/mmnetverify ] && exec_command "/usr/lpp/mmfs/bin/mmnetverify connectivity -N all -T all" "GPFS network verification"
-    ##############################################################################
-fi
-
-## this is newer stuff 2020
-# Added by Dusan Baljevic (dusan.baljevic@ieee.org) on 24 December 2017
-#
-SSDCONF="/etc/sssd/sssd.conf"
-if [ -s "$SSDCONF" ] ; then
-    dec_heading_level
-    paragraph "System Security Services Daemon (SSSD)"
-    inc_heading_level
-    exec_command "cat $SSSDCONF" "SSSD configuration"
-    exec_command "realm list" "List enrollments in realms"
-    [ -x /usr/bin/systemctl ] && exec_command "/usr/bin/systemctl status sssd" "Systemd SSSD status"
-    exec_command "getenet passwd" "List all users"
-    exec_command "getent group" "List all groups"
-    [ -x /sbin/sssctl ] && exec_command "/sbin/sssctl config-check" "SSSD configuration verification"
-    [ -x /sbin/sssctl ] && exec_command "/sbin/sssctl domain-list" "SSSD domain list"
-    [ -x /sbin/sssctl ] && exec_command "/sbin/sssctl domain-status" "SSSD domain status"
-fi
+# removed duplicate GPFS Clustering section # modified on 20240119 by edrulrd
+# removed duplicate SSSD Status section # modified on 20240119 by edrulrd
 
 # this may need reworking - works only if CFEngine agent is installed. # changed 20140319 by Ralph Roth
 if [ -x /var/cfengine/bin/cfagent ]
@@ -2363,13 +2483,12 @@ fi
 # SAP HANA in-depth investigation by Gratien D'haese - 10 May 2016 - issue #109
 if [ -x /usr/sap/hostctrl/exe/lssap ]
 then
-    /usr/sap/hostctrl/exe/lssap -F stdout | grep $(uname -n) | grep -q HDB              ### FIX?: issue #131
-    if [ $? -eq 0 ] ; then
+    if /usr/sap/hostctrl/exe/lssap -F stdout | grep "$(uname -n)" | grep -q HDB ; then              ### FIX?: issue #131
         # SAP HANA present
         dec_heading_level
         paragraph "SAP HANA Information"
         inc_heading_level
-        /usr/sap/hostctrl/exe/lssap -F stdout| awk -F"|" '{ if ($0 ~/\// ) print tolower($1)"adm " $2}' | while read  hdbadm sapnr
+        /usr/sap/hostctrl/exe/lssap -F stdout| awk -F"|" '{ if ($0 ~/\// ) print tolower($1)"adm " $2}' | while read -r hdbadm sapnr
         do
             exec_command "su - ${hdbadm} -c 'HDB proc'" "SAP HANA processes"
             exec_command "su - ${hdbadm} -c \"sapcontrol -nr ${sapnr} -function GetProcessList\"" "SAP HANA ProcessList"
@@ -2386,7 +2505,8 @@ fi
       dec_heading_level
       paragraph "Serviceguard/SGLX"
       inc_heading_level
-      . ${SGCONFFILE:=/etc/cmcluster.conf}   # get env. setting, rar 12.05.2005
+      # shellcheck source=/dev/null # add shellcheck directive to avoid warning SC1090
+      . "${SGCONFFILE:=/etc/cmcluster.conf}"   # get env. setting, rar 12.05.2005
       PATH=${PATH}:${SGSBIN}:$SGLBIN
       exec_command "cat ${SGCONFFILE:=/etc/cmcluster.conf}" "Cluster Config Files"
       # gdha - 17/Nov/2015 - what does not exist on Linux
@@ -2403,7 +2523,7 @@ fi
 
   dec_heading_level
   paragraph "Cluster Services"
-inc_heading_level
+  inc_heading_level
 
 ######## SLES 11 SP1 Pacemaker stuff ########## Mittwoch, 16. March 2011 ##### Ralph Roth ####
   [ -x /usr/sbin/corosync-cfgtool ] && exec_command "/usr/sbin/corosync-cfgtool -s;corosync -v" "Corosync TOTEM Status/Active Rings"
@@ -2446,43 +2566,46 @@ inc_heading_level
           exec_command "cat /etc/cluster/cluster.conf" "Cluster Configuration"
       fi
   fi
-dec_heading_level
 
-fi  #"${CFG_APPLICATIONS}"# <m>  23.04.2008 -  Ralph Roth
+# moved the end of the CFG_APPLICATIONS section to below the Oracle section # modified on 20240119 by edrulrd
 
 ##########################################################################
-##
-## Display Oracle configuration if applicable
-## Begin Oracle Config Display
-## 31jan2003 it233 FRU U.Frey
-
-if [ -s /etc/oratab ] ; then    # exists and >0
-
-  paragraph "Oracle Configuration"
-  inc_heading_level
-
-  exec_command "grep -vE '^#|^$|:N' /etc/oratab " "Configured Oracle Databases Startups"        #  27.10.2011, modified by Ralph Roth #* rar *#
-
   ##
-  ## Display each Oracle initSID.ora File
-  ##     orcl:/home/oracle/7.3.3.0.0:Y
-  ##     leaveup:/home/oracle/7.3.2.1.0:N
+  ## Display Oracle configuration if applicable
+  ## Begin Oracle Config Display
+  ## 31jan2003 it233 FRU U.Frey
 
-  for  DB in $(grep ':' /etc/oratab|grep -v '^#'|grep -v ':N$')                                 #  27.10.2011, 14:58 modified by Ralph Roth #* rar *#
-       do
-         Ora_Home=`echo ${DB} | awk -F: '{print $2}'`
-         Sid=`echo ${DB} | awk -F: '{print $1}'`
-         Init=${Ora_Home}/dbs/init${Sid}.ora
-         if [ -r "${Init}" ]
-         then
-            exec_command "cat ${Init}" "Oracle Instance ${Sid}"
-         else
-            AddText "WARNING: obsolete entry ${Init} in /etc/inittab for SID ${Sid}!"
-         fi
-       done
-  dec_heading_level
-fi
+  if [ -s /etc/oratab ] ; then    # exists and >0
 
+    dec_heading_level
+    paragraph "Oracle Configuration"
+    inc_heading_level
+
+    exec_command "grep -vE '^#|^$|:N' /etc/oratab " "Configured Oracle Databases Startups"        #  27.10.2011, modified by Ralph Roth #* rar *#
+
+    ##
+    ## Display each Oracle initSID.ora File
+    ##     orcl:/home/oracle/7.3.3.0.0:Y
+    ##     leaveup:/home/oracle/7.3.2.1.0:N
+
+    grep ':' /etc/oratab | grep -v '^#' | grep -v ':N$' | while IFS= read -r DB   #  27.10.2011, 14:58 modified by Ralph Roth #* rar *# modified per shellcheck SC2013 # modified on 20240322 by edrulrd
+         do
+           Ora_Home=$(echo "${DB}" | awk -F: '{print $2}')
+           Sid=$(echo "${DB}" | awk -F: '{print $1}')
+           Init=${Ora_Home}/dbs/init${Sid}.ora
+           if [ -r "${Init}" ]
+           then
+              exec_command "cat ${Init}" "Oracle Instance ${Sid}"
+           else
+              AddText "WARNING: obsolete entry ${Init} in /etc/inittab for SID ${Sid}!"
+           fi
+         done
+    dec_heading_level
+  fi
+
+dec_heading_level
+
+fi  #"${CFG_APPLICATIONS}"# <m>  23.04.2008 -  Ralph Roth # included Oracle within the Applications section # modified on 20240119 by edrulrd
 
 ###
 ##############################################################################
@@ -2500,18 +2623,18 @@ then # else skip to next paragraph
     inc_heading_level
 
     temphp=${TMP_DIR}/cfg2html_temp
-    if [ ! -d ${temphp} ] ; then
-         mkdir ${temphp}
+    if [ ! -d "${temphp}" ] ; then
+         mkdir "${temphp}"
     fi
 
     if [ -x /opt/hp/hpdiags/hpdiags ] ; then
-        /opt/hp/hpdiags/hpdiags -v 5 -o ${temphp}/hpdiagsV5.txt -f -p >/dev/null
+        /opt/hp/hpdiags/hpdiags -v 5 -o "${temphp}"/hpdiagsV5.txt -f -p >/dev/null
     fi
 
     if [ -x /opt/hp/hp_fibreutils/hp_system_info ] ; then
                 rm /tmp/system_info*.tar.gz -f
                 /opt/hp/hp_fibreutils/hp_system_info > /dev/null
-                cp /tmp/system_info*.tar.gz ${temphp}
+                cp /tmp/system_info*.tar.gz "${temphp}"
                 rm /tmp/system_info*.tar.gz -f
     fi
 
@@ -2526,23 +2649,23 @@ then # else skip to next paragraph
 
     CPQACUXE=$(which cpqacuxe 2>/dev/null)
     if [ -x "${CPQACUXE}" ] ; then
-            ${CPQACUXE} -c ${temphp}/cpqacuxe.cfg
+            ${CPQACUXE} -c "${temphp}"/cpqacuxe.cfg
     fi
 
     HPADUCLI=$(which hpaducli 2>/dev/null )
     if [ -x "${HPADUCLI}" ] ; then
-            ${HPADUCLI} -f ${temphp}/ADUreport.txt -r
+            ${HPADUCLI} -f "${temphp}"/ADUreport.txt -r
     fi
 
     # Where is hponcfg installed? /opt/hp/tools ???
     if [ -x /usr/lib/hponcfg ] ; then
-        /usr/lib/hponcfg -a -w ${temphp}/ilo.cfg  	# closes issue #31 # changed 20131218 by Ralph Roth
+        /usr/lib/hponcfg -a -w "${temphp}"/ilo.cfg  	# closes issue #31 # changed 20131218 by Ralph Roth
     fi
     if [ -x /sbin/hponcfg ] ; then
-        /sbin/hponcfg  -a -w ${temphp}/ilo.cfg  		# closes issue #31 # changed 20131218 by Ralph Roth
+        /sbin/hponcfg  -a -w "${temphp}"/ilo.cfg  		# closes issue #31 # changed 20131218 by Ralph Roth
     fi
 
-    if [ -x ${DMIDECODE} ] ;  then
+    if [ -x "${DMIDECODE}" ] ;  then
         exec_command "${DMIDECODE} | grep Product" "HP Proliant Server model Information taken from dmidecode"
     fi
 
@@ -2630,7 +2753,7 @@ then # else skip to next paragraph
     HPASMCLI=$(which hpasmcli 2>/dev/null)
     if [ -x "${HPASMCLI}" ] ; then
 ### # [20200319] {jcw} See if I can put this as a multi-line command.
-            ${HPASMCLI} -s "show asr; show boot; show dimm; show f1; show fans; show ht; show ipl; show name; show powersupply; show pxe; show serial bios; show serial embedded; show serial virtual; show server; show temp; show uid; show wol" >${temphp}/hpasmcliOutput.txt
+            ${HPASMCLI} -s "show asr; show boot; show dimm; show f1; show fans; show ht; show ipl; show name; show powersupply; show pxe; show serial bios; show serial embedded; show serial virtual; show server; show temp; show uid; show wol" >"${temphp}"/hpasmcliOutput.txt
             exec_command "cat ${temphp}/hpasmcliOutput.txt" "HP ASM CLI command line output"
     fi
 
@@ -2653,7 +2776,7 @@ then # else skip to next paragraph
             exec_command "cat /var/opt/hp/hp-pel/hp-pel.log" "Proliant Essentials Licenses Logfile"
     fi
 
-    if [ -e ${temphp}/ilo.cfg ] ; then
+    if [ -e "${temphp}"/ilo.cfg ] ; then
             exec_command "cat ${temphp}/ilo.cfg" "iLO configuration file captured via HPONCFG"
     fi
 
@@ -2671,15 +2794,15 @@ then # else skip to next paragraph
 
     if [ -e /var/log/messages ] ; then
     #       exec_command "cat /var/log/messages" "messages logging file (older messages logfiles in TARBALL)"
-                        cp /var/log/messages ${temphp} > /dev/null
-                        cp /var/log/messages.1 ${temphp} > /dev/null
-                        cp /var/log/messages.2 ${temphp} > /dev/null
+                        cp /var/log/messages "${temphp}" > /dev/null
+                        cp /var/log/messages.1 "${temphp}" > /dev/null
+                        cp /var/log/messages.2 "${temphp}"> /dev/null
     fi
 
     if [ -e /var/log/boot.log ] ; then
             exec_command "cat /var/log/boot.log" "boot.log logfile (older boot.log logfiles in TARBALL)"
-            cp /var/log/boot.log.1 ${temphp} > /dev/null
-            cp /var/log/boot.log.2 ${temphp} > /dev/null
+            cp /var/log/boot.log.1 "${temphp}" > /dev/null
+            cp /var/log/boot.log.2 "${temphp}" > /dev/null
     fi
 
     if [ -e /var/log/dmesg ] ; then
@@ -2694,7 +2817,7 @@ then # else skip to next paragraph
 #           exec_command "cat ${temphp}/ADUreport.txt" "Array Diagnostic Utility report is included in the TAR ball as a single file"
 #   fi
 
-    if [ -e ${temphp}/cpqacuxe.cfg ] ; then
+    if [ -e "${temphp}"/cpqacuxe.cfg ] ; then
             exec_command "cat ${temphp}/cpqacuxe.cfg" "cpqacuxe configuration file (SmartArray configuration)"
     fi
 
@@ -2703,43 +2826,43 @@ then # else skip to next paragraph
             /tmp/hpsum /report /veryv > /dev/null
             /tmp/hpsum /inventory_report /veryv > /dev/null
             /tmp/hpsum /firmware_report /veryv > /dev/null
-            cp /tmp/discovery.xml ${temphp} > /dev/null
-            cp /tmp/HPSUM_* ${temphp} > /dev/null
-            cp /tmp/hp_sum/*.trace ${temphp} > /dev/null
-            cp /tmp/hp_sum/InventoryResults.xml ${temphp} > /dev/null
+            cp /tmp/discovery.xml "${temphp}" > /dev/null
+            cp /tmp/HPSUM_* "${temphp}" > /dev/null
+            cp /tmp/hp_sum/*.trace "${temphp}" > /dev/null
+            cp /tmp/hp_sum/InventoryResults.xml "${temphp}" > /dev/null
     fi
 
     if [ -d /var/hp/log ] ; then
-            cp /var/hp/log/* ${temphp}
-            cp /var/hp/log/localhost/* ${temphp}
-            cp /var/log/hp_sum/* ${temphp}
+            cp /var/hp/log/* "${temphp}"
+            cp /var/hp/log/localhost/* "${temphp}"
+            cp /var/log/hp_sum/* "${temphp}"
     fi
 
     if [ -d /opt/hp/hpdiags ] ; then
-            cp /opt/hp/hpdiags/survey* ${temphp}
+            cp /opt/hp/hpdiags/survey* "${temphp}"
     fi
 
     if [ -d /opt/hp/hp-fc-enablement/elxreport.sh ] ; then
             /opt/hp/hp-fc-enablement/elxreport > /dev/null
-            cp /tmp/elxreport.sh* ${temphp}
+            cp /tmp/elxreport.sh* "${temphp}"
     fi
 
     if [ -d /opt/hp/hp-fc-enablement/ql-hba-collect-1.8/ql-hba-collect.sh ] ; then
             /opt/hp/hp-fc-enablement/ql-hba-collect-1.8/ql-hba-collect.sh > /dev/null
-            cp /tmp/QLogicDiag* ${temphp}
+            cp /tmp/QLogicDiag* "${temphp}"
     fi
 
     if [ -x /usr/local/bin/vcsu ] ; then
         echo "HP Virtual Connect Support Utility (VCSU) detected; get if needed the VC logs"
         echo " collected via /usr/local/bin/vcsu -a collect. and with vcsu -a -supportdump and"
-        echo " executute then again cfg2html to get all the logs included automatically."
-        cp /usr/local/bin/*.txt ${temphp}
-        cp /usr/local/bin/vcsu*.log ${temphp}
+        echo " execute cfg2html again to get all the logs included automatically." # modified phrasing # modified on 20240119 by edrulrd
+        cp /usr/local/bin/*.txt "${temphp}"
+        cp /usr/local/bin/vcsu*.log "${temphp}"
     fi
 
     if [ -e /opt/netxen ] ; then
         echo "NetXen diagnostic utility detected; to get full NetXEN diag output run command:"
-        echo "/opt/netxen/nxudiag -i ethX (ethX is your eth adapter like eth0 / eth1"
+        echo "/opt/netxen/nxudiag -i ethX (ethX is your eth adapter like eth0 / eth1)"  # added closing ')' # modified on 20240119 by edrulrd
     fi
 
     ###below partitioning and HPACUCLI is contributed by kgalal@gmail.com
@@ -2752,17 +2875,19 @@ then # else skip to next paragraph
 #       exec_command "/usr/sbin/hpacucli controller slot=${slotnum} physicaldrive all show" "Physical Drives on SmartArray Controller"
 #       exec_command "/usr/sbin/hpacucli controller slot=${slotnum} logicaldrive all show" "Logical Drives on SmartArray controller"
         exec_command "/usr/sbin/hpacucli ctrl all show config detail" "HP SmartArray controllers Detected"   # added by jeroenkleen HP # Changed 2011-09-05 Peter Boysen
-        /usr/sbin/hpacucli controller all diag file=${temphp}/hpacucli_diag.txt          # Added 2011-09-05 Peter Boysen.
+        /usr/sbin/hpacucli controller all diag file="${temphp}"/hpacucli_diag.txt          # Added 2011-09-05 Peter Boysen.
     fi
 
-    disks=`/sbin/fdisk -l`
-    if [ ! -z "${disks}" ] ; then
-        exec_command "/sbin/fdisk -l" "Disk Partitions on Logical Drives"
-    else
-        disks=`cat /proc/partitions | awk '{if($4 ~ /\//)print $4}' |grep -v p`
-        for adisk in ${disks} ; do
-            exec_command "/sbin/fdisk -l /dev/${adisk}" "Disk Partitions - /dev/${adisk}"
-        done
+    if [ -x /sbin/fdisk ] ; then # confirm we have fdisk # modified on 20240303 by edrulrd
+      disks=$(/sbin/fdisk -l) # Shellcheck recommended change # modified on 20240303 by edrulrd
+      if [ -n "${disks}" ] ; then # Shellcheck recommended change # modified on 20240303 by edrulrd
+          exec_command "/sbin/fdisk -l" "Disk Partitions on Logical Drives"
+      else
+          disks=$(awk '{if($4 ~ /\//)print $4}' /proc/partitions |grep -v p) # Shellcheck recommended changes # modified on 20240303 by edrulrd
+          for adisk in ${disks} ; do
+              exec_command "/sbin/fdisk -l /dev/${adisk}" "Disk Partitions - /dev/${adisk}"
+          done
+      fi
     fi
 
     ###above partitioning and HPACUCLI is contributed by kgalal@gmail.com
@@ -2822,10 +2947,10 @@ then # else skip to next paragraph
     paragraph "VMWare logfiles and settings"
     inc_heading_level
       exec_command "vmware -v" "VMWare Server version"
-      echo "VMWare server detected. We will start now the vm-support script in case you"
-      echo "need this vmware debugging file send to VMWare support or other support teams."
+      echo "VMWare server detected. We will now start the vm-support script in case you" # wording changes # modified on 20240119 by edrulrd
+      echo "need this vmware debugging file to send to VMWare support or other support teams." # wording changes # modified on 20240119 by edrulrd
       vm-support
-      exec_command "cat esx-$(date -I).$$.tgz" "vm-support ticket generated in local directory if vm-support is installed."
+      exec_command "ls -l esx-$(date -I).$$.tgz" "vm-support ticket generated in local directory if vm-support is installed." # changed cat to ls for tar file # modified on 20240119 by edrulrd
     dec_heading_level
   fi
 fi  # end of CFG_VMWARE paragraph
@@ -2837,33 +2962,35 @@ fi  # end of CFG_VMWARE paragraph
 
 if [ "${CFG_PLUGINS}" != "no" ];
 then # else skip to next paragraph
-    if [ -f ${CONFIG_DIR}/plugins ]; then
-    paragraph "Custom plugins"
+    if [ -f "${CONFIG_DIR}"/plugins ]; then
+      paragraph "Custom plugins"
 
-        # include plugin configuration
-    . ${CONFIG_DIR}/plugins
+      # include plugin configuration
+      # shellcheck source=/dev/null # add shellcheck directive to avoid warning SC1090
+      . "${CONFIG_DIR}"/plugins
 
 
-    if [ -n "${CFG2HTML_PLUGIN_DIR}" -a -n "${CFG2HTML_PLUGINS}" ]; then
-            # only run plugins when we know where to find them and at least one of them is enabled
+      if [ -n "${CFG2HTML_PLUGIN_DIR}" ] && [ -n "${CFG2HTML_PLUGINS}" ]; then
+        # only run plugins when we know where to find them and at least one of them is enabled
 
         inc_heading_level
 
         if [ "${CFG2HTML_PLUGINS}" == "all" ]; then
-        # include all plugins
-        CFG2HTML_PLUGINS="$(ls -1 ${CFG2HTML_PLUGIN_DIR})"
+          # include all plugins
+          CFG2HTML_PLUGINS="$(ls -1 "${CFG2HTML_PLUGIN_DIR}")"
         fi
 
         for CFG2HTML_PLUGIN in ${CFG2HTML_PLUGINS}; do
-        if [ -f "${CFG2HTML_PLUGIN_DIR}/${CFG2HTML_PLUGIN}" ]; then
-            . ${CFG2HTML_PLUGIN_DIR}/${CFG2HTML_PLUGIN}
-            exec_command cfg2html_plugin "${CFG2HTML_PLUGINTITLE}"
-        else
-            AddText "Configured plugin ${CFG2HTML_PLUGIN} not found in ${CFG2HTML_PLUGIN_DIR}"
-        fi
+          if [ -f "${CFG2HTML_PLUGIN_DIR}/${CFG2HTML_PLUGIN}" ]; then
+              # shellcheck source=/dev/null # add shellcheck directive to avoid warning SC1090
+              . "${CFG2HTML_PLUGIN_DIR}"/"${CFG2HTML_PLUGIN}"
+              exec_command cfg2html_plugin "${CFG2HTML_PLUGINTITLE}"
+          else
+              AddText "Configured plugin ${CFG2HTML_PLUGIN} not found in ${CFG2HTML_PLUGIN_DIR}"
+          fi
         done
-        dec_heading_level
-    fi
+      dec_heading_level
+      fi
     fi
 fi
 
@@ -2873,20 +3000,21 @@ fi
 #
 # collect local files
 #
-if [ -f ${CONFIG_DIR}/files ] ; then
-        paragraph "Local files"
+
+paragraph "Local files" # moved title so it's always generated # modified on 20240119 by edrulrd
+if [ -f "${CONFIG_DIR}"/files ] ; then
         inc_heading_level
         ## . ${CONFIG_DIR}/files -- not needed anymore to be sourced with the fix below/changed format
         ## FILES=`grep -vE '(^#|^ *$)' ${CONFIG_DIR}/files`   ## 25.08.2017 modified by Bernhard Keppel
-        for i in $(grep -v ^# ${CONFIG_DIR}/files) # suggested fix by John Emmert , 2016/04 ## ${FILE}S
+        grep -v ^# "${CONFIG_DIR}"/files | while IFS= read -r i  # suggested fix by John Emmert , 2016/04 ## ${FILE}S # modified per shellcheck SC2013 # modified on 20240322 by edrulrd
         do
-                if [ -f ${i} ] ; then
+                if [ -f "${i}" ] ; then
                         exec_command "grep -vE '(^#|^ *$)' ${i}" "Contents of the file: ${i}"
                 fi
         done; unset i
-        AddText "You can customize this paragraph by editing the file: ${CONFIG_DIR}/files"
         dec_heading_level
 fi
+AddText "You can customize this paragraph by editing the file: ${CONFIG_DIR}/files" # always add this final statement # modified on 20240119 by edrulrd
 
 dec_heading_level
 
@@ -2898,12 +3026,13 @@ close_html
 if [ "${CFG_HPPROLIANTSERVER}" != "no" ]
 then # else skip to next paragraph
 
- if [ -f ${OUTDIR}/${BASEFILE}.tar ] ; then
-        rm ${OUTDIR}/${BASEFILE}.tar
+ if [ -f "${OUTDIR}"/"${BASEFILE}".tar.gz ] ; then # added .gz appendage # modified on 20240119 by edrulrd
+        rm "${OUTDIR}"/"${BASEFILE}".tar.gz # added .gz appendage # modified on 20240119 by edrulrd
  fi
 echo " "
     echo "The following files are included in your gzipped tarball file:"
-    tar -czf ${OUTDIR}/${BASEFILE}.tar.gz ${temphp}
+	ls -l "${temphp}" # added file listing # modified on 20240119 by edrulrd
+    tar -czf "${OUTDIR}"/"${BASEFILE}".tar.gz "${temphp}"
     echo " "
     echo "The tar file can be mailed to your support supplier if needed"
 
@@ -2921,9 +3050,9 @@ ${_logger} "2nd End of cfg2html-linux ${VERSION}"
 rm -f core > /dev/null
 
 ########## remove the error.log if it has size zero #######################
-[ ! -s "${ERROR_LOG}" ] && rm -f ${ERROR_LOG} 2> /dev/null
+[ ! -s "${ERROR_LOG}" ] && rm -f "${ERROR_LOG}" 2>/dev/null
 
-rm -rf /tmp//tmp/cfg2html.??????????????  # [20200312] {jcw} Pattern of seemingly hangers-on directories after a run.
+rm -rf /tmp/cfg2html.???????????????  # [20200312] {jcw} Pattern of seemingly hangers-on directories after a run. # adjusted file name # modified on 20240119 by edrulrd
 
 ####################################################################
 

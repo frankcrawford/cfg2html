@@ -2,6 +2,693 @@ Changelog
 =========
 
 
+7.1.1 (2024-05-10)
+------------------
+
+Changes
+~~~~~~~
+- Updated the changelog. [roseswe]
+- Updated Changelog (by Makefile), Version: 7.1.0-8-g84c3a1e. [roseswe]
+- Removed some double quotes. Small changes. [roseswe]
+- Updated Changelog (by Makefile), Version: 7.1.0-0-g52e2869. [roseswe]
+
+Other
+~~~~~
+- Proposed change to README.md (#184) [Ralph Roth, edrulrd]
+
+  * chg: dev: confirm presence of the  libvirtd daemon for virsh cmds
+
+  * chg: dev: confirm "chkconfig -l" option is available
+
+  * chg: dev: confirm "lsblk -p" option is available
+
+  * chg: dev: check for different nmcli versions
+
+  * chg: dev: check for systemctl cmd availability
+
+  * chg: dev: create /run if necessary
+
+  * chg: dev: fix typo
+
+  * chg: dev: swapon --show fails on older systems
+
+  * chg: fix: check dmesg file instead of dmesg buffer twice
+
+  * chg: usr: add DNS resolution if using systemd-resolved.service
+
+  * chg: usr: README.md doc improvement
+
+  ---------
+- Bumped Debian Changelog to 7.1.1. [Ralph Roth (Debian)]
+- Minor update to cfg2html (#183) [Ralph Roth, edrulrd]
+
+  * chg: dev: confirm presence of the  libvirtd daemon for virsh cmds
+
+  * chg: dev: confirm "chkconfig -l" option is available
+
+  * chg: dev: confirm "lsblk -p" option is available
+
+  * chg: dev: check for different nmcli versions
+
+  * chg: dev: check for systemctl cmd availability
+
+  * chg: dev: create /run if necessary
+
+  * chg: dev: fix typo
+
+  * chg: dev: swapon --show fails on older systems
+
+  * chg: fix: check dmesg file instead of dmesg buffer twice
+
+  * chg: usr: add DNS resolution if using systemd-resolved.service
+
+  ---------
+- Clean up .err msgs for CentOS6 and fix Phys/Virt dmesg file checking
+  (#182) [edrulrd]
+
+  * chg: dev: confirm presence of the  libvirtd daemon for virsh cmds
+
+  * chg: dev: confirm "chkconfig -l" option is available
+
+  * chg: dev: confirm "lsblk -p" option is available
+
+  * chg: dev: check for different nmcli versions
+
+  * chg: dev: check for systemctl cmd availability
+
+  * chg: dev: create /run if necessary
+
+  * chg: dev: fix typo
+
+  * chg: dev: swapon --show fails on older systems
+
+  * chg: fix: check dmesg file instead of dmesg buffer twice
+- Code updates and shellcheck fixes (#181) [edrulrd]
+
+  * chg: fix: don't assume crontabs folder exists
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  Synology NAS's don't have a standard crontabs file.
+  Confirm it exists before  processing.
+
+  Fix shellcheck errors in that section
+
+  * chg: fix: test for presence of commands
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  Some programs don't exist on a Synology NAS even
+  after installing Community-available packages to
+  add missing commands:
+  - getconf
+  - last
+  - runlevel
+  - ss
+  - timedatectl
+
+  Don't generate error messages for them
+
+  * chg: fix: check for rpcbind in addition to the portmapper
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  In addition to checking for rpcbind in case portmapper isn't running,
+  some systems don't use /proc/net/rpc/nfs when NFS is being used,
+  so if the nfsstat command is available, try to run it to get client
+  statistics if pertinent
+
+  * chg: dev: xhost command at other locations in the path
+
+  * add new Todo about gsettings info
+
+  * chg: usr: show recommended nvidia GPU packages if applicable
+
+  * chg: dev: massive shellcheck update
+
+  * fix: check for file existence prior to its contents
+
+  * chg: dev: shellcheck: do bulk file writes instead of individually
+
+  * chg: dev: shellcheck: variable references within $(())
+
+  * chg: dev: shellcheck: dont depend on -n checking in expression testing
+
+  * chg: dev: shellcheck: /proc/net/bonding code change
+
+  * chg: dev: shellcheck: add directives for potentially unavailable source files
+
+  * chg: dev: shellcheck: read lines rather than words from files
+
+  * chg: usr: added systemctl check for vmtoolsd
+
+  * chg: fix: check for missing domainname command
+
+  files affected:
+  - linux/lib/linux-functions.sh
+
+  Adjust for missing domainname and
+  begin to fix shellcheck errors
+
+  * chg: usr: minor adjustments to log messages
+
+  * chg: fix: adjustment for null character in /proc/<pid>/cmdline
+
+  files affected:
+  - linux/lib/linux-functions.sh
+
+  function affected:
+  - topFDhandles
+
+  It was found that the null character \000, or (^@) was appended to
+  the text in /proc/<pid>/cmdline in some cases. For each affected
+  process id, this caused an error message in the journal of the form:
+
+  BASH_ERR: internal_warning [ (11161)"bash" -> ...  CMD=$(cat /proc/9673/cmdline)" ] sh: command substitution: ignored null byte in input
+
+  To resolve the issue, the "cat" command was substituted with "strings".
+
+  * chg: dev: ensure ldconfig command is available
+
+  * chg: dev: fall back to using smartctl if lsblk not available
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  When saving the partition tables, the lsblk command finds additional
+  "disk" eg. flash drives, that smartctl doesn't see.  But if lsblk is
+  not available, then we'll use  smartctl --scan if it is available.
+
+  * chg: dev: ensure /sbin and /usr/sbin are in the initial path
+
+  files affected:
+  - linux/etc/default.conf
+
+  When the program is run from cron, commands may not be found
+  if /sbin and/or /usr/sbin have not been added to cron's path.
+
+  * chg: dev: shellcheck - default.conf clean-up
+
+  * chg: fix: don't show directories in the PATH listing
+
+  files affected:
+  - linux/lib/linux-functions.sh
+
+  When listing executable files for entries in the PATH, don't show
+  links from directories such as /bin, /sbin, /usr/bin/X11 to other
+  directories.
+
+  Fix shellcheck errors in that section
+
+  * chg: usr: add distribution information for Synology NAS support
+
+  * chg: dev: shellcheck: updates in linux-functions.sh
+
+  * chg: usr: pretty-up output from a few commands
+
+  * chg: dev: add -f option to pgrep
+- Checked all Differential ShellCheck throws warnings about unused
+  variables or wrong written variables #180 warnings, lokks so far good.
+  [roseswe]
+- Additional proposed changes (#179) [edrulrd]
+
+  * add manually installed packages
+
+  * fix typos in virtual machine determination code
+
+  * make virt machine determination more readable
+
+  * fix 2nd typo in virt machine determination code
+
+  * also check the system journal for virtual machine status
+
+  * explain virtual/physical state determination
+
+  * move virt-what in proximity to virt/phys system determination
+
+  * show /etc/network/interfaces.d/* contents
+
+  * comment unused code !cosmetic
+
+  * chg: show all defined vm's with virsh, and virtual network info
+
+  * chg: show NetworkManager status, and availabilty status of the Internet
+
+  * chg: show Xen host and running guests
+
+  * fix: shellcheck detected typo
+
+  * chg: file /sys/kernel/mm/transparent_hugepage/enabled not always present
+
+  * chg: reduce messages to errorlog
+
+  * fix: don't issue Warning message if sfdisk not available
+
+  * chg: adjust modified code for shellcheck
+
+  * fix: Redhat moving to NetworkManager from ifcfg files
+
+  * fix: opensuse reported using LVM when none were defined
+
+  * chg: make suggestion in errorlog of installing the virt-what package if not installed
+
+  * chg: fix: "sshd -T" assumes sshd service is running
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  It was found during testing that if the openssh server wasn't running,
+  that "sshd -T" would fail with error:
+  "Missing privilege separation directory: /run/sshd"
+  To resolve the issue, we simple create the /run/sshd directory.
+
+  * chg: dev: removed exta backslashes !cosmetic
+- Function display_xfs_fs_param   TODO: Needs re-write on Debian 12 (at
+  least) [roseswe]
+- 📖 DOC: Enhanced for Debian builds. [roseswe]
+- For Debian builds bumped the version number to 7.1. [Ralph Roth
+  (Debian)]
+
+
+7.1.0 (2024-03-01)
+------------------
+
+Changes
+~~~~~~~
+- Updated Changelog (by Makefile), Version: 7.0.1-24-g13ce981. [roseswe]
+- Bumped year in copyright notice ;) [roseswe]
+- Updated Changelog (by Makefile), Version: 7.0.1-15-g6ca1f33. [roseswe]
+- Shellcheck fix SC2006. [roseswe]
+- Bumped version number for Debian. [roseswe]
+- Updated Changelog (by Makefile), Version: 7.0.1-7-gf11e501. [roseswe]
+- Updated Changelog (by Makefile), Version: [roseswe]
+- Documented rpm build, this hopefully closes issue jenkins: problem
+  with 'make rpm' -> git_branch in the Makefile is not set #155.
+  [roseswe]
+- Updated Changelog (by Makefile), Version: [roseswe]
+- Updated Changelog (by Makefile), Version: [roseswe]
+
+Fix
+~~~
+- Regression chg: beautified script. [roseswe]
+- Should close issue Cleanup of old temporary cfg2html directories is
+  not working well #167. [roseswe]
+- SC2028, closes issue cfg2html/hpux /cfg2html-hpux.sh missing usage
+  #176. [roseswe]
+- Typing mistake result in invalid command (Issue #175) [roseswe]
+- Closes issue #174 (contrib scripts) [roseswe]
+- This hopefully fixes issue #171? [Ralph Roth]
+- Makefile - version was empty. [roseswe]
+
+Other
+~~~~~
+- ✅ Add: sshd parameters ✅ Add: flatpak pkgs. [roseswe]
+- Doc: Documented new make feature:  Linux. [roseswe]
+- New changes by Ed Drouillard (#177) [edrulrd]
+
+  * chg: usr: adjust command output so it continues onto the next line
+
+  files affected:
+  - linux/lib/html-functions.sh
+  - linux/etc/default.conf
+
+  Some unix commands generate output with very long lines of output.
+  The program was previously cutting off all text beyond the 250'th
+  character.  The full output width of commands are now shown in the
+  reports.
+
+  This change introduces a new variable in the config file, namely
+  CFG_TEXTWIDTH, which is used to specify the width of the window
+  that the program should use before continuing the output onto the
+  next line.  This variable will have a new option (-w) defined in an
+  upcoming change that will allow this to be set from the command line.
+  The default setting for this variable is set to what was the previously
+  hard-coded value of 74 characters wide.  Note that this value never had
+  any effect on the executed internal linux command output, as many of
+  them generated output longer than 74 characters.  Where this value had
+  the most effect was in the section headers in the generated ASCII file.
+
+  * chg: dev: add COLUMNS variable to config file
+
+  files affected:
+  - linux/etc/default.conf
+  - linux/cfg2html-linux.sh
+
+  It was found that the systemd-cgls command depends on the value of
+  the COLUMNS variable to set the amount of output that it generates.
+  The variable was set to the value of the new CFG_TEXTWIDTH variable.
+
+  * chg: usr: Record the paragraph title and executed command in the ASCII file
+
+  files affected:
+  - linux/lib/html-functions.sh
+
+  Until now, the paragraph title and the executed command are shown under
+  each heading in the generated HTML file, but not in the ASCII file.
+  This change puts the paragraph title and the command or function
+  called, in the .txt file.  So that they can each be easily found in
+  the report, the commands begin with the prefix "###".
+
+  This extends the meaning of the CFG_STINLINE variable (-L option), to
+  now also include recording the command in the ASCII file by default. If
+  the variable is set to "no" or the -L option is specified, recording
+  of the command will be turned off in both generated reports.
+
+  * chg: Standardize the section titles in the HTML and ASCII reports
+
+  files affected:
+  - linux/lib/html-functions.sh
+  - linux/cfg2html-linux.sh
+
+  There were a few cases, namely in the "Cron and At" section where
+  the section titles were displayed differently than in most other
+  cases. This change allows a section title to be shown without issuing
+  any other message in the body section of the report.
+
+  In addition, by default, each section header title in the body of
+  the ASCII report was only 74 characters wide.  This change allows the
+  separator line to make use of the previously introduced CFG_TEXTWIDTH
+  variable, thus making the section separators more visible.
+
+  * chg: usr: Command option additions (-z, -v, -w)
+
+  files affected:
+  - linux/etc/default.conf
+  - linux/cfg2html-linux.sh
+
+  Code was recently added to the program to gather information regarding
+  ZFS filesystems and VMware.  However, there was no means to turn off
+  incorporating these sections into the report.  New variables have been
+  added to support their inclusion (by default), or exclusion.  By using
+  the -z and -v options, we can now selectively turn off collecting
+  information for the ZFS filesystem and VMware sections, respectively.
+
+  The new command-line option, -w allows a report width value to be
+  provided to the program at runtime.  This overrides the default and
+  previously hardcoded value of 74.  Depending on your X-window screen
+  size in which you view the report, a value of 300 to 350 was found
+  to be quite useful.
+
+  * chg: usr: command line help option (-h) modifications
+
+  files affected:
+  - linux/lib/help-functions.sh
+
+  New options were added to the help function, and the order of the
+  various command-line options were modified to put related items in
+  proximity to each other.
+
+  * chg: usr: better reporting in DoSmartInfo function
+
+  files affected:
+  - linux/lib/linux-functions.sh
+
+  The executed smart commands are now shown in the report.  Also,
+  for each disk drive, the separator line is made longer to make it
+  more visible.
+
+  * chg: show all ext2-4 partitions in display_ext_fs_param function
+
+  files affected:
+  - linux/lib/linux-functions.sh
+
+  If the lsblk command is in the PATH, then execute it to find
+  all partitions that are ext2, 3, or 4, be them mounted or not,
+  and display the filesystem information in turn for each of them.
+  If lsblk is not available, then as before this change, only details
+  about the mounted filesystems is provided in the report.
+
+  * chg: usr: ignore error message in PartitionDump function
+
+  files affected:
+  - linux/lib/linux-functions.sh
+
+  In the case where we have a physical volume without known partitions
+  (ie. just logical volumes), we discard the error message that was
+  being generated.
+
+  * chg: cpupower now has cpufreq-info
+
+  * chg: add +UUID to lsblk command
+
+  * chg: add --sort option on ps command
+
+  * chg: removed showing the pid on the pstree cmd
+
+  * chg: added the wide (-w) option on the vmstat cmd
+
+  * new: added borg backup system config file and backup logs
+
+  * chg: sort the output of slabinfo in descending order, in table format
+
+  * chg: clarify the text in the PATH section
+
+  * new: show config information in sudoers.d files
+
+  * chg: moved Oracle into the Applications and Subsystems paragraph
+
+  * chg: dev: removed duplicated GPFS and SSSD code sections
+
+  * chg: use new network commands, put output in columns, adjust section titles, and more
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  Summary of included changes, by category:
+  ########################################################################
+  1 - Command enhancements, additions and replacements
+      - removed commented out and blank lines from dnsmasq.conf file and
+       dig output, amongst many others
+      - started using new network commands instead of legacy commands
+        - ip maddress show
+        - ip link
+        - pminfo
+        - ss
+
+  2 - Added ability to specify page width, including providing columnar
+      and table output
+      - where suitable, adjust command output to be in table format to
+        better align columns of output
+      - where suitable, adjust commands that produce many lines of
+        relatively small amounts of output on each line within columns
+
+  3 - Modify Report titles or report text
+      - changed several section titles including:
+        - "Monitor" to "Processor Monitor"
+        - "Installed from" to "Package Source repositories"
+        - "Local Mountpoints" to "Mount points"
+        - "ZFS Status" to "ZFS Filesystem Status"
+        - and several other minor heading changes
+
+  4 - adjust logic affecting command inclusion or position in the report
+      - moved a few sections to be in proximity to similar items
+      - included the execution of some commands when they were available
+        even though, for example, tests of /proc indicated the command
+        wouldn't run properly
+        - eg. sensors
+        - eg. software raid status
+
+  * fix: dev: variable issues and /tmp file anomaly
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  - The variable being used to find the user crontab files was ill-defined.
+  - The variable SMAP should have been SGMAP.
+  - The /tmp/cfg2html file definition didn't match the pattern defined.
+  - It was likely desired to list a compressed tar file instead of cat'ing it.
+  - A parenthesis was missing at the end of an echo cmd.
+
+  * fix: usr: some wording and spelling changes in the generated reports
+
+  * fix: dev: fixed typos !cosmetic
+
+  * fix: dev: refactor plugin paragraph !cosmetic
+
+  * chg: usr: man page enhancements to include new and revised options
+
+  Also, some clarification, and other wording changes
+
+  * chg: check for non-existent block devices
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  In a virtual environment, we may not have /dev/sd* disk devices.
+  If not found, we list all non-virtual block devices.
+
+  * chg: dev: check for missing /lib/udev/scsi_id executable
+
+  * chg: dev: dismiss no printers error msg
+
+  * chg: dev: adjust Makefiles to determine debian vs rpm
+
+  files affected:
+  - Makefile
+  - linux/Makefile
+
+  Based on the presence of the apt program, if found, "make deb"
+  will be executed.  If not found, "make rpm" will be executed.
+
+  * chg: dev: use cross-platform column -c option
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  The --output-width option on the column command is not supported on older
+  releases of CentOS (7).  Using the -c option instead addresses this issue.
+
+  * chg: dev: quiet the which command's msg if not found
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  The which command issues a "not found" message on some systems.
+  The message is dropped from the errorlog.
+
+  * chg: dev: lsblk -o PATH N/A on old systems. Also added XFS
+
+  files affected:
+  - linux/lib/linux-functions.sh
+  - linux/cfg2html-linux.sh
+
+  older lsblk command didn't have the PATH option, so just dump out
+  the mounted ext2-4 filesystems in that case.
+
+  XFS filesystem parameters for the superblock for mounted filesystems,
+  if any, are now shown too.
+
+  * chg: dev: confirm proper numerical width (-w) value provided
+
+  * chg: usr: added column option for redhat rpm commands
+
+  files affected:
+  - linux/cfg2html-linux-sh
+
+  CentOS generated a very long list of RPM package information, so the
+  column command was added in case the -w option was used.
+
+  column cmd  was added to the selinux command as well.
+
+  The column command was removed from ldconfig, as it made the output
+  very messy looking.
+
+  * chg: dev: created DoPATHList function
+
+  files affected:
+  - linux/lib/linux-functions.sh
+  - linux/cfg2html-linux-sh
+
+  The code to list the files in the PATH was moved into a function.
+  Now the function name is shown in the reports, instead of the code.
+
+  * chg: usr: send output from kdumpctl to stdout
+
+  * chg: usr: discard commented and blank lines from authselect
+
+  * chg: dev: use blkid if lsblk is not available
+
+  files affected:
+  - linux/lib/linux-functions.sh
+
+  For ext2-4 and xfs filesystems, try to find them whether they
+  are mounted or not by using blkid, if lsblk is not available.
+  Worst case, just fall back to only displaying information about
+  mounted filesystems.
+
+  * chg: dev: sendmail was actually exim4
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  When sendmail links to exim, sendmail.cf was found not to exist,
+  and exim also uses different debugging options.
+
+  * chg: dev: use cross-platform column -t option
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  The --table option on the column command is not supported on older
+  releases of Ubuntu.  Using the -t option instead addresses this issue.
+
+  * chg: usr: if no LVM volume groups, show it
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  Show the No Volume Groups found msg if that is the case
+
+  * chg: usr: remove comments from samba's smb.conf
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  Also added a couple of echo statements for easier report readability.
+
+  * chg: usr: added top-most titles to Ascii file
+
+  * chg: dev: check for existence of hwclock cmd
+
+  * chg: usr: discard apt missing msg in linux/Makefile
+
+  * chg: usr: don't need tuned-adm's warning message
+
+  files affected:
+  - linux/cfg2html-linux.sh
+
+  Also probably don't need to see dot files in /dev/disk/by-id listing
+
+  * chg: usr: dump btrfs superblock information
+
+  files affected:
+  - linux/lib/linux-functions.sh
+  - linux/cfg2html-linux.sh
+
+  If applicable, summary btrfs superblock filesystem parameters are
+  now shown
+
+  * chg: usr: remove commented lines from nscd.conf
+
+  * chg: usr: added column cmd to /proc/config.gz list
+
+  * fix: dev: fixed typo in comment !cosmetic
+- Merge branch 'master' of github.com:cfg2html/cfg2html. [roseswe]
+
+  * 'master' of github.com:cfg2html/cfg2html:
+    Imrpoved Handeling, so output only apears when it is used (#173)
+- Imrpoved Handeling, so output only apears when it is used (#173)
+  [tyl0re]
+- Insert ZFS from BSD Module, to Linux so it exports zfs on linux (#172)
+  [root, tyl0re]
+
+  * Insert ZFS from BSD Module, to Linux so it exports zfs on linux
+
+  * Added Dump of the dpkg-conf values for installed Packages
+
+  ---------
+- Dch -i, bumped version number. [Ralph Roth]
+- Doc: Comments about issue #153 added. [roseswe]
+- Add: Playing around with github actions.... [roseswe]
+- Add timeout for virsh (#169) [Frank Crawford]
+
+  * Update License field in RPM spec file
+
+  * Correct minor issues with spec file
+
+  * Add timeout for virsh
+- Use DNF rather than YUM. if available (#170) [Frank Crawford]
+
+  * Update License field in RPM spec file
+
+  * Correct minor issues with spec file
+
+  * Use DNF rather than YUM. if available
+
+
 7.0.1 (2023-03-29)
 ------------------
 
